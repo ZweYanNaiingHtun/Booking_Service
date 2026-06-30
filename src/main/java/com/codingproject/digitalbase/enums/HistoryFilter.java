@@ -4,7 +4,4 @@ public enum HistoryFilter {
     TODAY,
     WEEKLY,
     MONTHLY;
-
-    private HistoryFilter() {
-    }
 }

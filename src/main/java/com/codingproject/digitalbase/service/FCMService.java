@@ -10,17 +10,15 @@ import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class FCMService {
-    @Generated
     private static final Logger log = LoggerFactory.getLogger(FCMService.class);
-
-    public FCMService() {
-    }
 
     public void sendPushNotification(String targetToken, String title, String body) {
         Notification notification = Notification.builder().setTitle(title).setBody(body).build();

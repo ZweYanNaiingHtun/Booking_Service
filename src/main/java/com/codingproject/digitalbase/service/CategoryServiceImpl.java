@@ -14,10 +14,12 @@ import com.codingproject.digitalbase.model.Category;
 import com.codingproject.digitalbase.repository.CategoryRepository;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
 
@@ -63,10 +65,5 @@ public class CategoryServiceImpl implements CategoryService {
         } else {
             this.categoryRepository.deleteById(id);
         }
-    }
-
-    @Generated
-    public CategoryServiceImpl(final CategoryRepository categoryRepository) {
-        this.categoryRepository = categoryRepository;
     }
 }

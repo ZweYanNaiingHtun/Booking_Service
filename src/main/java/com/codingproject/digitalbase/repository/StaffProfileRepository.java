@@ -1,6 +1,5 @@
 package com.codingproject.digitalbase.repository;
 
-import com.codingproject.digitalbase.dtos.CustomerStaffResponse;
 import com.codingproject.digitalbase.model.StaffProfile;
 import java.time.Instant;
 import java.util.List;
@@ -33,14 +32,4 @@ public interface StaffProfileRepository extends JpaRepository<StaffProfile, Long
     List<StaffProfile> findByIsAvailableTrue();
 
     Optional<StaffProfile> findByUserId(Long userId);
-
-    @Query("SELECT new com.codingproject.digitalbase.dtos.CustomerStaffResponse(sp.id, u.fullName, u.profilePicture, sp.rating, COUNT(b), sp.isAvailable) " +
-            "FROM StaffProfile sp JOIN sp.user u JOIN sp.specializedServices s LEFT JOIN sp.assignedBookings b " +
-            "WHERE s.Id = :serviceId GROUP BY sp.id, u.fullName, u.profilePicture, sp.rating, sp.isAvailable")
-    List<CustomerStaffResponse> findStaffForCustomerByService(@Param("serviceId") Long serviceId);
-
-    @Query("SELECT new com.codingproject.digitalbase.dtos.CustomerStaffResponse(sp.id, u.fullName, u.profilePicture, sp.rating, COUNT(b), sp.isAvailable) " +
-            "FROM StaffProfile sp JOIN sp.user u LEFT JOIN sp.assignedBookings b " +
-            "GROUP BY sp.id, u.fullName, u.profilePicture, sp.rating, sp.isAvailable")
-    List<CustomerStaffResponse> findAllStaffForCustomer();
 }

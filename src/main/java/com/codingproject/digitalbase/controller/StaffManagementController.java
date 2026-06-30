@@ -12,6 +12,7 @@ import com.codingproject.digitalbase.service.StaffManagementService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping({"/api/admin/staffs"})
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class StaffManagementController {
@@ -59,10 +61,5 @@ public class StaffManagementController {
     @PutMapping({"/{id}/status"})
     public ResponseEntity<StaffResponse> toggleStaffStatus(@PathVariable Long id, @RequestParam boolean enable) {
         return ResponseEntity.ok(this.staffService.toggleStaffStatus(id, enable));
-    }
-
-    @Generated
-    public StaffManagementController(final StaffManagementService staffService) {
-        this.staffService = staffService;
     }
 }

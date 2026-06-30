@@ -16,9 +16,11 @@ import com.codingproject.digitalbase.repository.BookingRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class DashboardService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
@@ -35,12 +37,5 @@ public class DashboardService {
         List<MonthlyReportDTO> monthlyReports = this.dashboardAnalyticsService.getMonthlyReports();
         List<BookingTrendDTO> bookingTrends = this.dashboardAnalyticsService.getBookingTrends();
         return DashboardSummaryResponse.builder().totalBookings(totalBookings).pendingBookings(pendingBookings).completedBookings(completedBookings).totalRevenue(totalRevenue).customerBookingSummary(customerBookingSummary).revenueSummary(revenueSummary).staffPerformance(staffPerformance).monthlyReports(monthlyReports).bookingTrends(bookingTrends).build();
-    }
-
-    @Generated
-    public DashboardService(final BookingRepository bookingRepository, final UserRepository userRepository, final DashboardAnalyticsService dashboardAnalyticsService) {
-        this.bookingRepository = bookingRepository;
-        this.userRepository = userRepository;
-        this.dashboardAnalyticsService = dashboardAnalyticsService;
     }
 }

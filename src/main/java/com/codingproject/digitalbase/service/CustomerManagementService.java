@@ -1,9 +1,8 @@
 package com.codingproject.digitalbase.service;
 
-import com.codingproject.digitalbase.dtos.CustomerDashboardMetrics;
-import com.codingproject.digitalbase.dtos.CustomerDetailResponse; // 🌟 ဤနေရာပြောင်းပါသည်
-import com.codingproject.digitalbase.dtos.CustomerSummaryResponse;
+import com.codingproject.digitalbase.dtos.*;
 import org.springframework.data.domain.Page;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface CustomerManagementService {
 
@@ -13,4 +12,8 @@ public interface CustomerManagementService {
 
     // 🌟 [UPDATED] Modal အသစ်အတွက် အသေးစိတ် ဒေတာအကုန်ထုတ်ပေးမည့် မက်သဒ်
     CustomerDetailResponse getCustomerDetail(Long customerId);
+
+    WalkInDetailResponse getWalkInDetail(Long bookingId);
+
+    Page<WalkInSummaryResponse> getWalkInList(int page, int size);
 }

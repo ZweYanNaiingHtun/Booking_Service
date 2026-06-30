@@ -12,6 +12,7 @@ import com.codingproject.digitalbase.dtos.VerifyPhoneUpdateRequest;
 import com.codingproject.digitalbase.service.UserService;
 import jakarta.validation.Valid;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping({"/api/users"})
 public class UserController {
     private final UserService userService;
@@ -69,10 +71,5 @@ public class UserController {
     public ResponseEntity<String> verifyAndUpdatePhone(@RequestBody @Valid VerifyPhoneUpdateRequest request) {
         this.userService.verifyAndUpdatePhone(request);
         return ResponseEntity.ok("Phone number has been updated successfully.");
-    }
-
-    @Generated
-    public UserController(final UserService userService) {
-        this.userService = userService;
     }
 }

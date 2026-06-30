@@ -5,11 +5,10 @@
 
 package com.codingproject.digitalbase.controller;
 
-import com.codingproject.digitalbase.dtos.CustomerDashboardMetrics;
-import com.codingproject.digitalbase.dtos.CustomerDetailResponse;
-import com.codingproject.digitalbase.dtos.CustomerSummaryResponse;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.service.CustomerManagementService;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping({"/api/admin/customers"})
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class CustomerManagementController {
@@ -40,8 +40,15 @@ public class CustomerManagementController {
         return ResponseEntity.ok(this.customerService.getCustomerDetail(customerId));
     }
 
-    @Generated
-    public CustomerManagementController(final CustomerManagementService customerService) {
-        this.customerService = customerService;
+    @GetMapping("/walkin/{bookingId}")
+    public ResponseEntity<WalkInDetailResponse> getWalkInDetail(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(customerService.getWalkInDetail(bookingId));
+    }
+
+    @GetMapping("/walkin")
+    public ResponseEntity<Page<WalkInSummaryResponse>> getWalkInCustomers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(customerService.getWalkInList(page, size));
     }
 }

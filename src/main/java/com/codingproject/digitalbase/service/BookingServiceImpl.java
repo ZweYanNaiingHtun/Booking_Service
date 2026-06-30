@@ -5,15 +5,7 @@
 
 package com.codingproject.digitalbase.service;
 
-import com.codingproject.digitalbase.dtos.BookingRequest;
-import com.codingproject.digitalbase.dtos.BookingResponse;
-import com.codingproject.digitalbase.dtos.CustomerStaffResponse;
-import com.codingproject.digitalbase.dtos.InvoiceResponse;
-import com.codingproject.digitalbase.dtos.StaffDutyResponse;
-import com.codingproject.digitalbase.dtos.StaffHistoryDetailResponse;
-import com.codingproject.digitalbase.dtos.StaffHistoryResponse;
-import com.codingproject.digitalbase.dtos.StaffTimeSlotResponse;
-import com.codingproject.digitalbase.dtos.WalkInBookingRequest;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.enums.HistoryFilter;
 import com.codingproject.digitalbase.enums.RoleName;
@@ -53,6 +45,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +59,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
@@ -183,6 +177,12 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public BookingResponse createCustomerBooking(BookingRequest request) {
         User currentUser = getCurrentAuthenticatedUser();
+
+        log.info("============= [DEBUG] =============");
+        log.info("→ Current Authenticated User ID: {}", currentUser.getId());
+        log.info("→ Requested Booking Date: {}", request.getBookingDate());
+        log.info("===================================");
+
         BusinessService service = serviceRepository.findById(request.getServiceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
 
@@ -672,9 +672,33 @@ public class BookingServiceImpl implements BookingService {
                             .staffProfileId(profile.getId())
                             .fullName(profile.getUser().getFullName())
                             .profilePicture(profile.getUser().getProfilePicture())
+                            .specializedName("Nail Artist")
                             .rating(profile.getRating())
                             .isAvailable(isAvailable)
                             .bookingCount(totalBookingCount)
+                            .build();
+                })
+                .toList();
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public List<HomeStaffResponse> getStaffListForHomePage() {
+        // 🌟 ၁။ စနစ်ထဲမှာ အလုပ်လုပ်နေဆဲ (Active) ဖြစ်သော ဝန်ထမ်းအားလုံးကိုပဲ တိုက်ရိုက်ယူမည်
+        List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
+
+        // 🌟 ၂။ Time Overlap စစ်ဆေးမှုများ လုံးဝမလုပ်ဘဲ UI Card အတွက် ဒေတာကို Direct Map လုပ်မည်
+        return activeProfiles.stream()
+                .map(profile -> {
+                    // ရရှိထားသော Review စုစုပေါင်း အရေအတွက်ကို တွက်ချက်ခြင်း
+                    int totalBooking = profile.getAssignedBookings() != null ? profile.getAssignedBookings().size() : 0;
+
+                    return HomeStaffResponse.builder()
+                            .staffProfileId(profile.getId())
+                            .fullName(profile.getUser().getFullName())
+                            .profilePicture(profile.getUser().getProfilePicture())
+                            .specializedName(profile.getSpecializedName() != null ? profile.getSpecializedName() : "Nail Artist")
+                            .rating(profile.getRating() != null ? profile.getRating() : 0.0)
+                            .bookingCount(totalBooking) // ဥပမာ - ၁၀၀ သို့မဟုတ် ၀
                             .build();
                 })
                 .toList();
@@ -871,21 +895,19 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private BookingResponse mapToResponse(Booking booking) {
-        return BookingResponse.builder().id(booking.getId()).customerId(booking.getCustomer().getId()).customerName(booking.getCustomer().getFullName()).customerPhone(booking.getCustomer().getPhone()).serviceId(booking.getBusinessService().getId()).serviceName(booking.getBusinessService().getName()).bookingDate(booking.getBookingDate()).notes(booking.getNotes()).status(booking.getStatus()).createdByCustomerOrStaffName(booking.getCreatedBy().getFullName()).createdAt(booking.getCreatedAt()).cancelledBy(booking.getCancelledBy()).build();
-    }
-
-    @Generated
-    public BookingServiceImpl(final BookingRepository bookingRepository, final UserRepository userRepository, final BusinessServiceRepository serviceRepository, final RoleRepository roleRepository, final PasswordEncoder passwordEncoder, final HttpServletRequest httpServletRequest, final StaffProfileRepository staffProfileRepository, final StaffAssignmentRepository staffAssignmentRepository, final FCMService fcmService, final PaymentRepository paymentRepository, final AuthService authService) {
-        this.bookingRepository = bookingRepository;
-        this.userRepository = userRepository;
-        this.serviceRepository = serviceRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.httpServletRequest = httpServletRequest;
-        this.staffProfileRepository = staffProfileRepository;
-        this.staffAssignmentRepository = staffAssignmentRepository;
-        this.fcmService = fcmService;
-        this.paymentRepository = paymentRepository;
-        this.authService = authService;
+        return BookingResponse.builder()
+                .id(booking.getId())
+                .customerId(booking.getCustomer().getId())
+                .customerName(booking.getCustomer().getFullName())
+                .customerPhone(booking.getCustomer().getPhone())
+                .serviceId(booking.getBusinessService().getId())
+                .serviceName(booking.getBusinessService().getName())
+                .bookingDate(booking.getBookingDate())
+                .notes(booking.getNotes())
+                .status(booking.getStatus())
+                .createdByCustomerOrStaffName(booking.getCreatedBy().getFullName())
+                .createdAt(booking.getCreatedAt())
+                .cancelledBy(booking.getCancelledBy())
+                .build();
     }
 }

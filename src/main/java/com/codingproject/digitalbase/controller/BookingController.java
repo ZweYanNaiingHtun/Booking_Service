@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping({"/api/bookings"})
 public class BookingController {
     private final BookingService bookingService;
@@ -77,6 +79,10 @@ public class BookingController {
         this.bookingService.assignStaffToBooking(bookingId, request.getStaffId());
         return ResponseEntity.ok("Staff assigned and notification sent successfully.");
     }
+    @GetMapping("/home-staffs")
+    public ResponseEntity<List<HomeStaffResponse>> getStaffListForHomePage() {
+        return ResponseEntity.ok(bookingService.getStaffListForHomePage());
+    }
 
     @GetMapping({"/available-staff"})
     public ResponseEntity<List<User>> getAvailableStaff(@RequestParam("date") String dateStr) {
@@ -121,10 +127,5 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'STAFF', 'CUSTOMER')")
     public ResponseEntity<BookingResponse> getBookingById(@PathVariable Long id) {
         return ResponseEntity.ok(this.bookingService.getBookingById(id));
-    }
-
-    @Generated
-    public BookingController(final BookingService bookingService) {
-        this.bookingService = bookingService;
     }
 }

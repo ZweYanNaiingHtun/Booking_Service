@@ -8,6 +8,7 @@ package com.codingproject.digitalbase.service;
 import com.codingproject.digitalbase.repository.UserRepository;
 import jakarta.mail.internet.MimeMessage;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.SimpleMailMessage;
@@ -17,6 +18,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
     @Generated
     private static final Logger log = LoggerFactory.getLogger(EmailServiceImpl.class);
@@ -105,11 +107,5 @@ public class EmailServiceImpl implements EmailService {
             log.error("Failed to send staff welcome email to: {}. Error: {}", new Object[]{to, e.getMessage(), e});
         }
 
-    }
-
-    @Generated
-    public EmailServiceImpl(final JavaMailSender emailSender, final UserRepository userRepository) {
-        this.emailSender = emailSender;
-        this.userRepository = userRepository;
     }
 }

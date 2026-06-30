@@ -15,10 +15,12 @@ import com.codingproject.digitalbase.repository.BusinessServiceRepository;
 import com.codingproject.digitalbase.repository.CategoryRepository;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class BusinessServiceServiceImpl implements BusinessServiceService {
     private final BusinessServiceRepository serviceRepository;
     private final CategoryRepository categoryRepository;
@@ -89,11 +91,5 @@ public class BusinessServiceServiceImpl implements BusinessServiceService {
 
     private ServiceResponse mapToResponse(BusinessService service) {
         return ServiceResponse.builder().id(service.getId()).name(service.getName()).description(service.getDescription()).price(service.getPrice()).categoryId(service.getCategory().getId()).categoryName(service.getCategory().getName()).durationInMinutes(service.getDurationInMinutes()).isPackage(service.is_package()).isEnabled(service.isEnabled()).build();
-    }
-
-    @Generated
-    public BusinessServiceServiceImpl(final BusinessServiceRepository serviceRepository, final CategoryRepository categoryRepository) {
-        this.serviceRepository = serviceRepository;
-        this.categoryRepository = categoryRepository;
     }
 }

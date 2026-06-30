@@ -4,7 +4,4 @@ public enum PaymentStatus {
     PENDING,
     PAID,
     FAILED;
-
-    private PaymentStatus() {
-    }
 }

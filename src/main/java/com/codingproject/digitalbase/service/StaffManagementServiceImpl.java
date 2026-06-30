@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -42,8 +43,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class StaffManagementServiceImpl implements StaffManagementService {
-    @Generated
+
     private static final Logger log = LoggerFactory.getLogger(StaffManagementServiceImpl.class);
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -233,14 +235,5 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a").withZone(ZoneId.of("Asia/Yangon"));
         String formattedDate = user.getCreatedAt() != null ? formatter.format(user.getCreatedAt()) : null;
         return StaffResponse.builder().id(user.getId()).fullName(user.getFullName()).code(user.getCode()).email(user.getEmail()).phone(user.getPhone()).gender(user.getGender()).profilePicture(user.getProfilePicture()).enabled(user.isEnabled()).createdAt(formattedDate).build();
-    }
-
-    @Generated
-    public StaffManagementServiceImpl(final UserRepository userRepository, final RoleRepository roleRepository, final PasswordEncoder passwordEncoder, final BusinessServiceRepository serviceRepository, final EmailService emailService) {
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.serviceRepository = serviceRepository;
-        this.emailService = emailService;
     }
 }

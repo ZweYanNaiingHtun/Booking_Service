@@ -14,9 +14,11 @@ import java.sql.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class DashboardAnalyticsService {
     private final AnalyticsRepository analyticsRepository;
 
@@ -29,15 +31,12 @@ public class DashboardAnalyticsService {
     }
 
     public List<MonthlyReportDTO> getMonthlyReports() {
-        return (List)this.analyticsRepository.getRawMonthlyReports().stream().map((row) -> new MonthlyReportDTO((String)row[0], ((Number)row[1]).longValue(), row[2] != null ? ((Number)row[2]).doubleValue() : (double)0.0F)).collect(Collectors.toList());
+        return this.analyticsRepository.getRawMonthlyReports().stream()
+                .map((row) -> new MonthlyReportDTO(row[0], ((Number)row[1]).longValue(), row[2] != null ? ((Number)row[2]).doubleValue() : (double)0.0F)).collect(Collectors.toList());
     }
 
     public List<BookingTrendDTO> getBookingTrends() {
-        return (List)this.analyticsRepository.getRawBookingTrends().stream().map((row) -> new BookingTrendDTO(row[0] != null ? ((Date)row[0]).toLocalDate() : null, ((Number)row[1]).longValue())).collect(Collectors.toList());
-    }
-
-    @Generated
-    public DashboardAnalyticsService(final AnalyticsRepository analyticsRepository) {
-        this.analyticsRepository = analyticsRepository;
+        return this.analyticsRepository.getRawBookingTrends().stream()
+                .map((row) -> new BookingTrendDTO(row[0] != null ? ((Date)row[0]).toLocalDate() : null, ((Number)row[1]).longValue())).collect(Collectors.toList());
     }
 }

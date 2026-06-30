@@ -9,6 +9,7 @@ import com.codingproject.digitalbase.repository.UserRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,8 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class UnverifiedUserCleanUpService {
-    @Generated
     private static final Logger log = LoggerFactory.getLogger(UnverifiedUserCleanUpService.class);
     private final UserRepository userRepository;
 
@@ -40,10 +41,5 @@ public class UnverifiedUserCleanUpService {
             log.error("Error occurred while executing unverified users cleanup: {}", e.getMessage(), e);
         }
 
-    }
-
-    @Generated
-    public UnverifiedUserCleanUpService(final UserRepository userRepository) {
-        this.userRepository = userRepository;
     }
 }

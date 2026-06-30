@@ -31,7 +31,9 @@ public class StaffProfile {
             joinColumns = @JoinColumn(name = "staff_profile_id"),
             inverseJoinColumns = @JoinColumn(name = "service_id")
     )
-    private Set<BusinessService> specializedServices = new HashSet<>(); // ဥပမာ - Hair Stylist, Mechanic, Developer စသဖြင့်
+    private Set<BusinessService> specializedServices = new HashSet<>();
+
+    private String specializedName;
 
     @Column(name = "is_available", nullable = false)
     private boolean isAvailable = true; // လက်ရှိ Booking လက်ခံနိုင်ခြင်း ရှိ/မရှိ

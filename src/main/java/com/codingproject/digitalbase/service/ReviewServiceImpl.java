@@ -21,6 +21,7 @@ import com.codingproject.digitalbase.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
     private final BookingRepository bookingRepository;
@@ -91,13 +93,5 @@ public class ReviewServiceImpl implements ReviewService {
 
     private ReviewResponse mapToResponse(Review review) {
         return ReviewResponse.builder().id(review.getId()).bookingId(review.getBooking().getId()).customerName(review.getCustomer().getFullName()).staffName(review.getStaffProfile().getUser().getFullName()).starRating(review.getStarRating()).comment(review.getComment()).createdAt(review.getCreatedAt()).build();
-    }
-
-    @Generated
-    public ReviewServiceImpl(final ReviewRepository reviewRepository, final BookingRepository bookingRepository, final StaffProfileRepository staffProfileRepository, final UserRepository userRepository) {
-        this.reviewRepository = reviewRepository;
-        this.bookingRepository = bookingRepository;
-        this.staffProfileRepository = staffProfileRepository;
-        this.userRepository = userRepository;
     }
 }

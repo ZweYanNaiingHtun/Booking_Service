@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final EmailService emailService;
@@ -145,12 +147,5 @@ public class UserServiceImpl implements UserService {
 
     private UserProfileResponse mapToProfileResponse(User user) {
         return UserProfileResponse.builder().id(user.getId()).fullName(user.getFullName()).email(user.getEmail()).phone(user.getPhone()).gender(user.getGender()).profilePicture(user.getProfilePicture()).build();
-    }
-
-    @Generated
-    public UserServiceImpl(final UserRepository userRepository, final EmailService emailService, final PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.emailService = emailService;
-        this.passwordEncoder = passwordEncoder;
     }
 }

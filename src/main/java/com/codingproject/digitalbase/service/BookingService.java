@@ -5,14 +5,7 @@
 
 package com.codingproject.digitalbase.service;
 
-import com.codingproject.digitalbase.dtos.BookingRequest;
-import com.codingproject.digitalbase.dtos.BookingResponse;
-import com.codingproject.digitalbase.dtos.CustomerStaffResponse;
-import com.codingproject.digitalbase.dtos.InvoiceResponse;
-import com.codingproject.digitalbase.dtos.StaffDutyResponse;
-import com.codingproject.digitalbase.dtos.StaffHistoryResponse;
-import com.codingproject.digitalbase.dtos.StaffTimeSlotResponse;
-import com.codingproject.digitalbase.dtos.WalkInBookingRequest;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.enums.HistoryFilter;
 import com.codingproject.digitalbase.model.User;
@@ -50,6 +43,8 @@ public interface BookingService {
     Page<BookingResponse> getAllBookings(int page, int size);
 
     List<CustomerStaffResponse> getStaffListForBooking(Long serviceId, Instant bookingDate);
+
+    List<HomeStaffResponse> getStaffListForHomePage();
 
     List<StaffDutyResponse> getStaffWeeklyDuties(LocalDate selectedDate, BookingStatus status);
 

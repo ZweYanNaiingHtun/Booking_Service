@@ -12,6 +12,7 @@ import com.codingproject.digitalbase.model.Category;
 import com.codingproject.digitalbase.service.CategoryService;
 import java.util.List;
 import lombok.Generated;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,10 +27,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping({"/api/categories"})
-@CrossOrigin(
-        origins = {"*"}
-)
+@CrossOrigin(origins = {"*"})
 public class CategoryController {
     private final CategoryService categoryService;
 
@@ -67,10 +67,5 @@ public class CategoryController {
     public ResponseEntity<String> deleteCategory(@PathVariable Long id) {
         this.categoryService.deleteCategory(id);
         return ResponseEntity.ok("Category deleted successfully");
-    }
-
-    @Generated
-    public CategoryController(final CategoryService categoryService) {
-        this.categoryService = categoryService;
     }
 }

@@ -4,7 +4,4 @@ public enum RoleName {
     SUPER_ADMIN,
     STAFF,
     CUSTOMER;
-
-    private RoleName() {
-    }
 }

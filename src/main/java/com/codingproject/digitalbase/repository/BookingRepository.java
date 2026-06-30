@@ -61,4 +61,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT b FROM Booking b WHERE b.customer.id = :customerId ORDER BY b.createdAt DESC")
     List<Booking> findTopRecentBookings(@Param("customerId") Long customerId, Pageable pageable);
+
+    @Query("SELECT b FROM Booking b WHERE b.customer.code = 'CU-WALKIN' ORDER BY b.bookingDate DESC")
+    Page<Booking> findWalkInBookings(Pageable pageable);
 }
