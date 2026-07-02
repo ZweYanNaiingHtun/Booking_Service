@@ -5,16 +5,8 @@
 
 package com.codingproject.digitalbase.service;
 
-import com.codingproject.digitalbase.dtos.CompleteProfileRequest;
-import com.codingproject.digitalbase.dtos.ForgotPasswordRequest;
-import com.codingproject.digitalbase.dtos.LoginRequest;
-import com.codingproject.digitalbase.dtos.LoginResponse;
-import com.codingproject.digitalbase.dtos.ResetPasswordRequest;
-import com.codingproject.digitalbase.dtos.SignupInitRequest;
-import com.codingproject.digitalbase.dtos.TokenPair;
-import com.codingproject.digitalbase.dtos.VerifyOtpRequest;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.enums.RoleName;
-import com.google.api.client.auth.oauth2.RefreshTokenRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface AuthService {

@@ -12,5 +12,6 @@ public class HomeStaffResponse {
     private String profilePicture;
     private String specializedName; // UI: "Nail Artist"
     private Double rating;          // UI: 4.5
-    private int bookingCount;        // UI: (100) အတွက် အရေအတွက်
+    private int bookingCount;
+    private boolean isAvailable;
 }

@@ -20,4 +20,6 @@ public interface StaffManagementService {
     StaffResponse updateStaffUser(Long staffId, StaffUpdateRequest request);
 
     StaffResponse toggleStaffStatus(Long staffId, boolean enable);
+
+    StaffResponse toggleStaffAvailability(Long staffProfileId, boolean available);
 }

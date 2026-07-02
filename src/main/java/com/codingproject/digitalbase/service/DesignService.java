@@ -1,5 +1,7 @@
 package com.codingproject.digitalbase.service;
 
+import com.codingproject.digitalbase.dtos.ChartDataPoint;
+import com.codingproject.digitalbase.dtos.DashboardStatsResponse;
 import com.codingproject.digitalbase.dtos.DesignResponseDto;
 import java.io.IOException;
 import java.util.List;
@@ -13,4 +15,6 @@ public interface DesignService {
     List<DesignResponseDto> getCustomerFavorites(String customerEmail);
 
     DesignResponseDto uploadDesign(String title, MultipartFile file) throws IOException;
+
+
 }

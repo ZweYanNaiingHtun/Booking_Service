@@ -1,8 +1,3 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
-
 package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.ChangePasswordRequest;
@@ -24,7 +19,6 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
-import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +33,16 @@ public class UserServiceImpl implements UserService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
+    // 🌟 🌟 🌟 ၁။ စာမျက်နှာဖွင့်ချိန်တွင် Email ဖြင့် Profile ဒေတာ ရှာဖွေပေးမည့် Method အသစ်
+    @Override
+    @Transactional(readOnly = true)
+    public UserProfileResponse getMyProfile(String email) {
+        User user = (User)this.userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
+        return this.mapToProfileResponse(user);
+    }
+
+    @Override
     @Transactional
     public UserProfileResponse updateMyProfile(UpdateProfileRequest request) {
         String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -67,10 +71,11 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        User updatedUser = (User)this.userRepository.save(user);
+        User updatedUser = this.userRepository.save(user);
         return this.mapToProfileResponse(updatedUser);
     }
 
+    @Override
     @Transactional
     public UserProfileResponse updateProfilePhoto(String email, MultipartFile profileImage) {
         User user = (User)this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
@@ -101,6 +106,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    @Override
     @Transactional
     public UserProfileResponse changePassword(String email, ChangePasswordRequest request) {
         User user = (User)this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
@@ -115,6 +121,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    @Override
     @Transactional
     public void sendPhoneUpdateOtp() {
         String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -127,6 +134,7 @@ public class UserServiceImpl implements UserService {
         this.emailService.sendOtpEmail(user.getEmail(), otp);
     }
 
+    @Override
     @Transactional
     public void verifyAndUpdatePhone(VerifyPhoneUpdateRequest request) {
         String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -145,7 +153,17 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    // 🌟 🌟 🌟 ၃။ UI ဒီဇိုင်းနှင့် ကိုက်ညီအောင် Role ပါ တစ်ပါတည်း Map လုပ်ပေးခြင်း
     private UserProfileResponse mapToProfileResponse(User user) {
-        return UserProfileResponse.builder().id(user.getId()).fullName(user.getFullName()).email(user.getEmail()).phone(user.getPhone()).gender(user.getGender()).profilePicture(user.getProfilePicture()).build();
+        return UserProfileResponse.builder()
+                .id(user.getId())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .gender(user.getGender())
+                .profilePicture(user.getProfilePicture())
+                // 💡 UI ထဲက "Role: Admin" Badge အတွက် ဖြည့်စွက်ခြင်း (UserProfileResponse ထဲတွင် role field ရှိရန်လိုအပ်ပါသည်)
+//                .role(user.getRole() != null ? user.getRole().name() : null)
+                .build();
     }
 }

@@ -25,40 +25,22 @@ import java.time.Instant;
 public class Payment {
 
     @Id
-
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-
     private Long id;
 
-
-
     @OneToOne(fetch = FetchType.LAZY)
-
     @JoinColumn(name = "booking_id", nullable = false)
-
     private Booking booking;
-
-
 
     private BigDecimal baseAmount;// 🌟 Normal Price အတွက်
 
-
-
     private BigDecimal extraAmount; // 🌟 Extra Price အတွက်
 
-
-
     @Column(nullable = false, precision = 10, scale = 2)
-
     private BigDecimal amount; // ငွေပမာဏ
 
-
-
     @Column(nullable = false, length = 20)
-
     private String status; // e.g., PENDING, COMPLETED, FAILED
-
-
 
     private String invoiceNumber;
 

@@ -15,5 +15,6 @@ public class WalkInSummaryResponse {
     private String startTime;       // 02:00 PM
     private String totalTime;       // 2 hours (Duration ပြရန်)
     private String totalAmountDisplay; // "20000 MMK +5k Extra" ပုံစံမျိုး String ဖြင့် စုစည်းပြရန်
-    private BigDecimal totalAmount; // တန်ဖိုးအမှန်
+    private BigDecimal totalAmount;
+    private BigDecimal extraAmount;
 }

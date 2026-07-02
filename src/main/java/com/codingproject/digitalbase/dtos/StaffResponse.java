@@ -16,5 +16,6 @@ public class StaffResponse {
     private String gender;
     private String profilePicture;
     private boolean enabled;
+    private boolean isAvailable;
     private String createdAt;
 }

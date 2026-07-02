@@ -443,7 +443,7 @@ public class BookingServiceImpl implements BookingService {
 
         // 🌟 Instant ဖြင့် Buffer Time တိုက်ရိုက်တွက်ချက်ခြင်း (Timezone ပြောင်းစရာမလိုတော့ပါ)
         Instant customerStartTime = booking.getBookingDate();
-        Instant staffStartTime = customerStartTime.minus(Duration.ofMinutes(20));
+        Instant staffStartTime = customerStartTime.minus(Duration.ofMinutes(10));
 
         Integer durationInMinutes = booking.getBusinessService().getDurationInMinutes();
         Instant staffEndTime = customerStartTime.plus(Duration.ofMinutes(durationInMinutes + 20));
@@ -683,11 +683,10 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<HomeStaffResponse> getStaffListForHomePage() {
-        // 🌟 ၁။ စနစ်ထဲမှာ အလုပ်လုပ်နေဆဲ (Active) ဖြစ်သော ဝန်ထမ်းအားလုံးကိုပဲ တိုက်ရိုက်ယူမည်
-        List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
+        // 🌟 ပြင်ဆင်ချက်: Frontend မှ လှမ်းစစ်နိုင်ရန် findByIsAvailableTrue() အစား findAll() ဖြင့် ဝန်ထမ်းအားလုံးကို ယူပါမည်
+        List<StaffProfile> allProfiles = staffProfileRepository.findAll();
 
-        // 🌟 ၂။ Time Overlap စစ်ဆေးမှုများ လုံးဝမလုပ်ဘဲ UI Card အတွက် ဒေတာကို Direct Map လုပ်မည်
-        return activeProfiles.stream()
+        return allProfiles.stream()
                 .map(profile -> {
                     // ရရှိထားသော Review စုစုပေါင်း အရေအတွက်ကို တွက်ချက်ခြင်း
                     int totalBooking = profile.getAssignedBookings() != null ? profile.getAssignedBookings().size() : 0;
@@ -698,7 +697,8 @@ public class BookingServiceImpl implements BookingService {
                             .profilePicture(profile.getUser().getProfilePicture())
                             .specializedName(profile.getSpecializedName() != null ? profile.getSpecializedName() : "Nail Artist")
                             .rating(profile.getRating() != null ? profile.getRating() : 0.0)
-                            .bookingCount(totalBooking) // ဥပမာ - ၁၀၀ သို့မဟုတ် ၀
+                            .bookingCount(totalBooking)
+                            .isAvailable(profile.isAvailable()) // 🌟 ဤနေရာတွင် အလုပ်လုပ်နိုင်မှု Status ကို ထည့်သွင်းပေးလိုက်ပါပြီ
                             .build();
                 })
                 .toList();

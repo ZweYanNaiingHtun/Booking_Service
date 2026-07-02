@@ -1,39 +1,52 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
-
 package com.codingproject.digitalbase.controller;
 
-import com.codingproject.digitalbase.dtos.CustomerBookingResponse;
-import com.codingproject.digitalbase.dtos.DashboardSummaryResponse;
-import com.codingproject.digitalbase.repository.UserRepository;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.service.DashboardService;
 import java.util.List;
-import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping({"/api/admin/dashboard"})
+@RequestMapping("/api/admin/dashboard")
 public class DashboardController {
+
     private final DashboardService dashboardService;
-    private final UserRepository userRepository;
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @GetMapping({"/summary"})
-    public ResponseEntity<DashboardSummaryResponse> getDashboardSummary() {
-        return ResponseEntity.ok(this.dashboardService.getDashboardSummary());
+    @GetMapping("/stats")
+    public ResponseEntity<DashboardStatsResponse> getDashboardStats() {
+        return ResponseEntity.ok(this.dashboardService.getDashboardStats());
     }
 
-    @GetMapping({"/booking-summary"})
-    public ResponseEntity<List<CustomerBookingResponse>> getCustomersBookingSummary() {
-        return ResponseEntity.ok(this.userRepository.findAllCustomersWithBookingCount());
+    // 🌟 ၂။ Chart Data သီးသန့် (Weekly သို့မဟုတ် Monthly Toggle အတွက်)
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/chart")
+    public ResponseEntity<List<ChartDataPoint>> getChartData(@RequestParam(defaultValue = "weekly") String period) {
+        return ResponseEntity.ok(this.dashboardService.getChartData(period));
     }
 
+    // 🌟 ၂။ Top Services + Staff Performance Table (Monthly စာရင်းများအတွက်)
+    // 🌟 ၁။ ဝန်ဆောင်မှု Trending (Pie Chart) အတွက် သီးသန့် Endpoint
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/service-trending")
+    public ResponseEntity<List<TopServiceResponse>> getServiceTrending() {
+        return ResponseEntity.ok(this.dashboardService.getTopServicesTrending());
+    }
+
+    // 🌟 ၂။ ဝန်ထမ်းစွမ်းဆောင်ရည် (Staff Management Table) အတွက် သီးသန့် Endpoint
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/staff-performance")
+    public ResponseEntity<List<StaffPerformance>> getStaffPerformance() {
+        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking());
+    }
+
+    // 🌟 ၃။ Dashboard အောက်ဆုံးက "Today's Bookings" Real-time Feed အတွက်
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/today-bookings")
+    public ResponseEntity<List<TodayBookingResponse>> getTodayBookings() {
+        return ResponseEntity.ok(this.dashboardService.getTodayBookingsFeed());
+    }
 }

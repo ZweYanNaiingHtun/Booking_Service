@@ -17,7 +17,6 @@ public class WalkInBookingRequest {
     private Long serviceId;
 
     @NotNull(message = "Booking date is required for walk-in booking")
-    @Future(message = "Booking date must be futured")
     private Instant bookingDate;
 
     private BigDecimal amount;

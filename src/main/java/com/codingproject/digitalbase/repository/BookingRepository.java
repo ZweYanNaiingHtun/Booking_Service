@@ -1,8 +1,3 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
-
 package com.codingproject.digitalbase.repository;
 
 import com.codingproject.digitalbase.dtos.MonthlyReportDTO;
@@ -23,26 +18,21 @@ import org.springframework.stereotype.Repository;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     Page<Booking> findByCustomerId(Long customerId, Pageable pageable);
 
-    List<Booking> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
-
-    List<Booking> findByStatusOrderByCreatedAtDesc(BookingStatus status);
-
     @Query("SELECT b.assignedStaff.id FROM Booking b WHERE b.bookingDate = :bookingDate AND b.status = com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED")
     List<Long> findBusyStaffIdsByDateTime(@Param("bookingDate") Instant bookingDate);
 
-    List<Booking> findByRequestedStaffIdAndStatusAndBookingDateBetween(Long staffProfileId, BookingStatus status, Instant start, Instant end);
-
     List<Booking> findByStatusAndBookingDateBetween(BookingStatus status, Instant start, Instant end);
-
-    long countByStatus(BookingStatus status);
 
     @Query("SELECT COALESCE(SUM(b.businessService.price), 0.0) FROM Booking b WHERE b.status = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED")
     double calculateTotalRevenue();
 
-    @Query("SELECT new com.codingproject.digitalbase.dtos.MonthlyReportDTO(FUNCTION('DATE_FORMAT', b.createdAt, '%Y-%m'), COUNT(b), SUM(CASE WHEN b.status = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED THEN b.businessService.price ELSE 0.0 END)) FROM Booking b GROUP BY FUNCTION('DATE_FORMAT', b.createdAt, '%Y-%m') ORDER BY FUNCTION('DATE_FORMAT', b.createdAt, '%Y-%m') ASC")
+    // 🌟 ပြင်ဆင်လိုက်သည့်နေရာ: b.createdAt မှ b.bookingDate သို့ ပြောင်းလဲထားပါသည် (SELECT, GROUP BY, ORDER BY သုံးနေရာလုံး)
+    @Query("SELECT new com.codingproject.digitalbase.dtos.MonthlyReportDTO(FUNCTION('DATE_FORMAT', b.bookingDate, '%Y-%m'), COUNT(b), SUM(CASE WHEN b.status = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED THEN b.businessService.price ELSE 0.0 END)) FROM Booking b GROUP BY FUNCTION('DATE_FORMAT', b.bookingDate, '%Y-%m') ORDER BY FUNCTION('DATE_FORMAT', b.bookingDate, '%Y-%m') ASC")
     List<MonthlyReportDTO> getMonthlyReportsAndTrends();
 
-    @Query("SELECT COUNT(b) FROM Booking b WHERE b.requestedStaff.id = :profileId AND b.status = 'PENDING'")
+    @Query("SELECT COUNT(b) FROM Booking b WHERE " +
+            "b.requestedStaff.id = :profileId AND" +
+            " b.status = 'PENDING'")
     long countPendingByStaffProfileId(@Param("profileId") Long profileId);
 
     boolean existsByCustomerIdAndBookingDateAndStatusIn(Long customerId, Instant bookingDate, Collection<BookingStatus> statuses);
@@ -55,9 +45,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.bookingDate >= :startOfDay AND b.bookingDate <= :endOfDay")
     long countTodayBookings(@Param("startOfDay") Instant startOfDay, @Param("endOfDay") Instant endOfDay);
-
-    @Query("SELECT b FROM Booking b WHERE b.customer.id = :customerId ORDER BY b.createdAt DESC LIMIT 1")
-    Optional<Booking> findNewestBookingByCustomerId(@Param("customerId") Long customerId);
 
     @Query("SELECT b FROM Booking b WHERE b.customer.id = :customerId ORDER BY b.createdAt DESC")
     List<Booking> findTopRecentBookings(@Param("customerId") Long customerId, Pageable pageable);

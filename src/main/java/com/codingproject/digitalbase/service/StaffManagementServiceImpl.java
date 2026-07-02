@@ -1,8 +1,3 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
-
 package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.StaffCreateRequest;
@@ -17,6 +12,7 @@ import com.codingproject.digitalbase.model.StaffProfile;
 import com.codingproject.digitalbase.model.User;
 import com.codingproject.digitalbase.repository.BusinessServiceRepository;
 import com.codingproject.digitalbase.repository.RoleRepository;
+import com.codingproject.digitalbase.repository.StaffProfileRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
 import java.io.IOException;
 import java.nio.file.CopyOption;
@@ -34,7 +30,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
-import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +47,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
     private final PasswordEncoder passwordEncoder;
     private final BusinessServiceRepository serviceRepository;
     private final EmailService emailService;
+    private final StaffProfileRepository staffProfileRepository;
 
     private String generateUserCode(RoleName roleName) {
         if (roleName == RoleName.SUPER_ADMIN) {
@@ -96,7 +92,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
 
             try {
                 this.emailService.sendStaffWelcomeEmail(savedStaff.getEmail(), temporaryPassword);
-                log.info("\ud83d\ude80 Temporary password successfully sent to staff email: {}", savedStaff.getEmail());
+                log.info("🚀 Temporary password successfully sent to staff email: {}", savedStaff.getEmail());
             } catch (Exception e) {
                 log.error("❌ Failed to send credential email to {}. Error: {}", savedStaff.getEmail(), e.getMessage());
             }
@@ -121,7 +117,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
             }
 
             User updatedStaff = (User)this.userRepository.save(staff);
-            log.info("\ud83c\udfaf Successfully updated specialized services for staff code: {}", updatedStaff.getCode());
+            log.info("🎯 Successfully updated specialized services for staff code: {}", updatedStaff.getCode());
             return this.mapToStaffResponse(updatedStaff);
         }
     }
@@ -144,14 +140,12 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         }
 
         List<Character> charList = new ArrayList();
-
         for(char c : password.toString().toCharArray()) {
             charList.add(c);
         }
 
         Collections.shuffle(charList);
         StringBuilder shuffledPassword = new StringBuilder();
-
         for(char c : charList) {
             shuffledPassword.append(c);
         }
@@ -160,7 +154,10 @@ public class StaffManagementServiceImpl implements StaffManagementService {
     }
 
     public List<StaffResponse> getAllStaffs() {
-        return this.userRepository.findAll().stream().filter((user) -> user.getRoles().stream().anyMatch((role) -> role.getRole() == RoleName.STAFF)).map(this::mapToStaffResponse).toList();
+        return this.userRepository.findAll().stream()
+                .filter((user) -> user.getRoles().stream().anyMatch((role) -> role.getRole() == RoleName.STAFF))
+                .map(this::mapToStaffResponse)
+                .toList();
     }
 
     @Transactional
@@ -231,9 +228,40 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         }
     }
 
+    @Override
+    @Transactional
+    public StaffResponse toggleStaffAvailability(Long staffProfileId, boolean available) {
+        StaffProfile staffProfile = staffProfileRepository.findById(staffProfileId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff profile not found with id: " + staffProfileId));
+
+        staffProfile.setAvailable(available);
+        StaffProfile updatedProfile = staffProfileRepository.save(staffProfile);
+
+        // 🌟 ပြင်ဆင်ချက်: mapToStaffResponse ထဲသို့ user entity ကို ပြန်ထည့်ပေးခြင်းဖြင့် အားလုံးအဆင်ပြေသွားပါမည်
+        return this.mapToStaffResponse(updatedProfile.getUser());
+    }
+
+    // 🌟 တည်ငြိမ်ပြီး စိတ်ချရသော တစ်ခုတည်းသော Mapper Method
     private StaffResponse mapToStaffResponse(User user) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a").withZone(ZoneId.of("Asia/Yangon"));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a")
+                .withZone(ZoneId.of("Asia/Yangon"));
+
         String formattedDate = user.getCreatedAt() != null ? formatter.format(user.getCreatedAt()) : null;
-        return StaffResponse.builder().id(user.getId()).fullName(user.getFullName()).code(user.getCode()).email(user.getEmail()).phone(user.getPhone()).gender(user.getGender()).profilePicture(user.getProfilePicture()).enabled(user.isEnabled()).createdAt(formattedDate).build();
+
+        // 🌟 User ထဲမှတစ်ဆင့် StaffProfile ကို ယူပြီး isAvailable ကို Null-safe ဖြစ်အောင် ဆွဲထုတ်ခြင်း
+        boolean availableStatus = user.getStaffProfile() != null && user.getStaffProfile().isAvailable();
+
+        return StaffResponse.builder()
+                .id(user.getId())
+                .fullName(user.getFullName())
+                .code(user.getCode())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .gender(user.getGender())
+                .profilePicture(user.getProfilePicture())
+                .enabled(user.isEnabled())
+                .isAvailable(availableStatus) // 🌟 ကွက်တိ Map ဖြစ်သွားပါပြီ
+                .createdAt(formattedDate)
+                .build();
     }
 }

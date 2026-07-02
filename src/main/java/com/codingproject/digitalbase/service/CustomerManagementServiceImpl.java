@@ -175,10 +175,11 @@ public class CustomerManagementServiceImpl implements CustomerManagementService 
             // ၃။ Payment အချက်အလက်များအား UI Tag ပုံစံအတိုင်း စာသားစုစည်းခြင်း
             String amountDisplay = "0 MMK";
             BigDecimal totalAmt = BigDecimal.ZERO;
+            BigDecimal extra = BigDecimal.ZERO;
 
             if (b.getPayment() != null) {
                 totalAmt = b.getPayment().getAmount();
-                BigDecimal extra = b.getPayment().getExtraAmount();
+                extra = b.getPayment().getExtraAmount();
 
                 if (extra != null && extra.compareTo(BigDecimal.ZERO) > 0) {
                     amountDisplay = String.format("%.0f MMK +%.0fk Extra", b.getPayment().getBaseAmount(), extra);
@@ -197,6 +198,7 @@ public class CustomerManagementServiceImpl implements CustomerManagementService 
                     .totalTime(totalTimeStr)
                     .totalAmountDisplay(amountDisplay)
                     .totalAmount(totalAmt)
+                    .extraAmount(extra)
                     .build();
         });
     }

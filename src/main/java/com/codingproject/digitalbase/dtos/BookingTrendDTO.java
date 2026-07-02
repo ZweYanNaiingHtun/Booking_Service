@@ -9,6 +9,6 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class BookingTrendDTO {
 
-    private LocalDate date;
+    private LocalDate bookingDate;
     private long bookingCount;
 }

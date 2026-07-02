@@ -62,4 +62,13 @@ public class StaffManagementController {
     public ResponseEntity<StaffResponse> toggleStaffStatus(@PathVariable Long id, @RequestParam boolean enable) {
         return ResponseEntity.ok(this.staffService.toggleStaffStatus(id, enable));
     }
+
+    @PutMapping("/{id}/toggle-availability")
+    public ResponseEntity<StaffResponse> toggleStaffAvailability(
+            @PathVariable("id") Long staffProfileId,
+            @RequestParam("available") boolean available) {
+
+        StaffResponse response = staffService.toggleStaffAvailability(staffProfileId, available);
+        return ResponseEntity.ok(response);
+    }
 }

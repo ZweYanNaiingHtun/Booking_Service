@@ -5,17 +5,9 @@
 
 package com.codingproject.digitalbase.controller;
 
-import com.codingproject.digitalbase.dtos.CompleteProfileRequest;
-import com.codingproject.digitalbase.dtos.ForgotPasswordRequest;
-import com.codingproject.digitalbase.dtos.LoginRequest;
-import com.codingproject.digitalbase.dtos.LoginResponse;
-import com.codingproject.digitalbase.dtos.ResetPasswordRequest;
-import com.codingproject.digitalbase.dtos.SignupInitRequest;
-import com.codingproject.digitalbase.dtos.TokenPair;
-import com.codingproject.digitalbase.dtos.VerifyOtpRequest;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.repository.UserRepository;
 import com.codingproject.digitalbase.service.AuthService;
-import com.google.api.client.auth.oauth2.RefreshTokenRequest;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import lombok.Generated;

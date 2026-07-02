@@ -32,4 +32,6 @@ public interface StaffProfileRepository extends JpaRepository<StaffProfile, Long
     List<StaffProfile> findByIsAvailableTrue();
 
     Optional<StaffProfile> findByUserId(Long userId);
+
+    int countByIsAvailableTrue();
 }

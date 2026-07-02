@@ -14,4 +14,6 @@ public class UserProfileResponse {
     private String phone;
     private String gender;
     private String profilePicture;
+    // 🌟 🌟 🌟 Admin, Staff, Customer Role များကို Dynamic ပြသရန် ထပ်တိုးလိုက်ပါသည်
+    private String role;
 }
