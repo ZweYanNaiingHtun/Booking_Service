@@ -2,6 +2,8 @@ package com.codingproject.digitalbase.dtos;
 
 import lombok.*;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,4 +20,6 @@ public class StaffResponse {
     private boolean enabled;
     private boolean isAvailable;
     private String createdAt;
+    private String dateOfBirth;
+    private List<Long> specializedServiceIds;
 }

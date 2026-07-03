@@ -50,11 +50,10 @@ public class StaffManagementController {
         return ResponseEntity.ok(this.staffService.getAllStaffs());
     }
 
-    @PutMapping(
-            value = {"/{id}"},
-            consumes = {"multipart/form-data"}
-    )
-    public ResponseEntity<StaffResponse> updateStaff(@PathVariable Long id, @ModelAttribute @Valid StaffUpdateRequest request) {
+    @PutMapping("/{id}")
+    public ResponseEntity<StaffResponse> updateStaff(
+            @PathVariable Long id,
+            @RequestBody @Valid StaffUpdateRequest request) { // 🌟 @ModelAttribute မှ @RequestBody (JSON) သို့ ပြောင်းလဲခြင်း
         return ResponseEntity.ok(this.staffService.updateStaffUser(id, request));
     }
 

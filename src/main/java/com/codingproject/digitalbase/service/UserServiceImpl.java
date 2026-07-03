@@ -1,9 +1,7 @@
 package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.ChangePasswordRequest;
-import com.codingproject.digitalbase.dtos.UpdateProfileRequest;
 import com.codingproject.digitalbase.dtos.UserProfileResponse;
-import com.codingproject.digitalbase.dtos.VerifyPhoneUpdateRequest;
 import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
 import com.codingproject.digitalbase.model.User;
@@ -15,12 +13,9 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.SecureRandom;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final EmailService emailService;
@@ -40,39 +36,6 @@ public class UserServiceImpl implements UserService {
         User user = (User)this.userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
         return this.mapToProfileResponse(user);
-    }
-
-    @Override
-    @Transactional
-    public UserProfileResponse updateMyProfile(UpdateProfileRequest request) {
-        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = (User)this.userRepository.findByEmail(currentEmail).orElseThrow(() -> new ResourceNotFoundException("Logged in user profile not found"));
-        user.setFullName(request.getFullName());
-        user.setGender(request.getGender());
-        if (request.getProfileImage() != null && !request.getProfileImage().isEmpty()) {
-            try {
-                Path uploadPath = Paths.get("uploads/profile-pictures/");
-                if (!Files.exists(uploadPath, new LinkOption[0])) {
-                    Files.createDirectories(uploadPath);
-                }
-
-                if (user.getProfilePicture() != null && !user.getProfilePicture().equals("default-profile.png")) {
-                    Path oldFilePath = uploadPath.resolve(user.getProfilePicture());
-                    Files.deleteIfExists(oldFilePath);
-                }
-
-                String var10000 = UUID.randomUUID().toString();
-                String newFileName = var10000 + "_" + request.getProfileImage().getOriginalFilename();
-                Path filePath = uploadPath.resolve(newFileName);
-                Files.copy(request.getProfileImage().getInputStream(), filePath, new CopyOption[]{StandardCopyOption.REPLACE_EXISTING});
-                user.setProfilePicture(newFileName);
-            } catch (IOException e) {
-                throw new BadRequestException("Failed to update profile image: " + e.getMessage());
-            }
-        }
-
-        User updatedUser = this.userRepository.save(user);
-        return this.mapToProfileResponse(updatedUser);
     }
 
     @Override
@@ -123,34 +86,23 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void sendPhoneUpdateOtp() {
-        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = (User)this.userRepository.findByEmail(currentEmail).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        SecureRandom random = new SecureRandom();
-        String otp = String.valueOf(100000 + random.nextInt(900000));
-        user.setOtp(otp);
-        user.setOtpGeneratedTime(Instant.now());
-        this.userRepository.save(user);
-        this.emailService.sendOtpEmail(user.getEmail(), otp);
-    }
+    public void updatePhoneDirect(String email, String newPhone) {
+        // ၁။ လက်ရှိ Login ဝင်ထားသော အသုံးပြုသူကို ရှာဖွေပါတယ်
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-    @Override
-    @Transactional
-    public void verifyAndUpdatePhone(VerifyPhoneUpdateRequest request) {
-        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = (User)this.userRepository.findByEmail(currentEmail).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if (user.getOtp() == null) {
-            throw new BadRequestException("OTP not found or already used");
-        } else if (!user.getOtp().equals(request.getOtp())) {
-            throw new BadRequestException("Invalid OTP code");
-        } else if (user.getOtpGeneratedTime().plus(5L, ChronoUnit.MINUTES).isBefore(Instant.now())) {
-            throw new BadRequestException("OTP code has expired");
-        } else {
-            user.setPhone(request.getNewPhoneNumber());
-            user.setOtp((String)null);
-            user.setOtpGeneratedTime((Instant)null);
-            this.userRepository.save(user);
+        // ၂။ ပြောင်းလဲမည့် ဖုန်းနံပါတ်အသစ်သည် အခြားသူတစ်ယောက်ယောက် သုံးထားပြီးသား ဖြစ်နေလား စစ်ဆေးခြင်း (Duplicate Check)
+        if (userRepository.existsByPhone(newPhone)) {
+            if (!newPhone.equals(user.getPhone())) {
+                throw new BadRequestException("This phone number is already registered by another user");
+            }
         }
+
+        // ၃။ ဖုန်းနံပါတ်အသစ်ကို တိုက်ရိုက် သတ်မှတ်ပြီး သိမ်းဆည်းလိုက်ပါသည်
+        user.setPhone(newPhone);
+        userRepository.save(user);
+
+        log.info("📱 Successfully updated phone number directly for user: {}", email);
     }
 
     // 🌟 🌟 🌟 ၃။ UI ဒီဇိုင်းနှင့် ကိုက်ညီအောင် Role ပါ တစ်ပါတည်း Map လုပ်ပေးခြင်း
@@ -163,7 +115,11 @@ public class UserServiceImpl implements UserService {
                 .gender(user.getGender())
                 .profilePicture(user.getProfilePicture())
                 // 💡 UI ထဲက "Role: Admin" Badge အတွက် ဖြည့်စွက်ခြင်း (UserProfileResponse ထဲတွင် role field ရှိရန်လိုအပ်ပါသည်)
-//                .role(user.getRole() != null ? user.getRole().name() : null)
+                .role(user.getRoles() != null && !user.getRoles().isEmpty() ?
+                        user.getRoles().stream()
+                                .findFirst()
+                                .map(r -> r.getRole().name()) // r.getRole() က RoleName ကို ပြန်ပေးပြီး .name() က String ပြန်ပေးပါတယ်
+                                .orElse(null) : null)
                 .build();
     }
 }

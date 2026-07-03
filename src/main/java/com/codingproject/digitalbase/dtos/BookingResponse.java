@@ -22,4 +22,6 @@ public class BookingResponse {
     private String createdByCustomerOrStaffName;
     private Instant createdAt;
     private String cancelledBy;
+    private String rejectionReason;
+
 }

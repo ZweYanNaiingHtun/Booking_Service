@@ -43,6 +43,12 @@ public class DashboardController {
         return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking());
     }
 
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/staff-performance/{id}")
+    public ResponseEntity<StaffPerformance> getStaffPerformanceById(@PathVariable Long id) {
+        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceById(id));
+    }
+
     // 🌟 ၃။ Dashboard အောက်ဆုံးက "Today's Bookings" Real-time Feed အတွက်
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/today-bookings")

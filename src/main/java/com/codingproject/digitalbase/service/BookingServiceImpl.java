@@ -44,11 +44,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import lombok.Generated;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -501,9 +499,73 @@ public class BookingServiceImpl implements BookingService {
         return response;
     }
 
+
+    @Override
     @Transactional
-    public BookingResponse cancelBooking(Long id, String cancelledBy, String userEmail) {
-        Booking booking = (Booking)this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+    public BookingResponse cancelBookingByAdmin(Long id, String cancelledBy, String userEmail, String reason) {
+        Booking booking = this.bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+
+        if ("CUSTOMER".equals(cancelledBy)) {
+            if (!booking.getCustomer().getEmail().equals(userEmail)) {
+                throw new BadRequestException("You are not authorized to cancel this booking.");
+            }
+
+            Instant now = Instant.now();
+            Instant bookingTime = booking.getBookingDate();
+            long hoursUntilBooking = Duration.between(now, bookingTime).toHours();
+            long minimumHoursRequired = 1L;
+            if (hoursUntilBooking < minimumHoursRequired) {
+                throw new BadRequestException("You can only cancel this booking at least " + minimumHoursRequired + " hours before the appointment. Remaining time: " + hoursUntilBooking + " hours.");
+            }
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BadRequestException("Only PENDING or CONFIRMED bookings can be cancelled.");
+        } else {
+            if (booking.getStaffAssignment() != null) {
+                this.staffAssignmentRepository.delete(booking.getStaffAssignment());
+                booking.setStaffAssignment(null);
+            }
+
+            booking.setStatus(BookingStatus.CANCELLED);
+            booking.setAssignedStaff(null);
+            booking.setCancelledBy(cancelledBy);
+
+            // 🌟 အဆင့်မြှင့်တင်ချက် - Admin က ပယ်ဖျက်ပြီး Reason ပါလာပါက Entity ထဲတွင် ထည့်သွင်းသိမ်းဆည်းခြင်း
+            if ("ADMIN".equals(cancelledBy) && reason != null && !reason.isBlank()) {
+                // 💡 ဆရာကြီးရဲ့ Booking Entity ထဲရှိ ကော်လံအမည်အတိုင်း (ဥပမာ- setRejectionReason) ပြောင်းလဲပေးပါရန်
+                booking.setRejectionReason(reason);
+            }
+
+            BookingResponse response = this.mapToResponse(this.bookingRepository.save(booking));
+
+            if ("ADMIN".equals(cancelledBy)) {
+                User customer = booking.getCustomer();
+                if (customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
+
+                    // 💡 အဆင့်မြှင့်တင်ချက် - Push Notification စာသားထဲတွင် ငြင်းပယ်ရသည့် အကြောင်းပြချက်ကိုပါ တစ်ပါတည်း ထည့်သွင်းပြသခြင်း
+                    String notificationBody = "Sorry, your booking for " + booking.getBusinessService().getName() + " has been rejected by the admin.";
+                    if (reason != null && !reason.isBlank()) {
+                        notificationBody += " Reason: " + reason;
+                    }
+
+                    this.fcmService.sendPushNotification(
+                            customer.getFcmToken(),
+                            "Booking Rejected ❌",
+                            notificationBody
+                    );
+                }
+            }
+
+            return response;
+        }
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse cancelBookingByCustomer(Long id, String cancelledBy, String userEmail) {
+        Booking booking = this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
         if ("CUSTOMER".equals(cancelledBy)) {
             if (!booking.getCustomer().getEmail().equals(userEmail)) {
                 throw new BadRequestException("You are not authorized to cancel this booking.");
@@ -908,6 +970,7 @@ public class BookingServiceImpl implements BookingService {
                 .createdByCustomerOrStaffName(booking.getCreatedBy().getFullName())
                 .createdAt(booking.getCreatedAt())
                 .cancelledBy(booking.getCancelledBy())
+                .rejectionReason(booking.getRejectionReason())
                 .build();
     }
 }

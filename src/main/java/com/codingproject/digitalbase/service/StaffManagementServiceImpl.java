@@ -160,13 +160,17 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                 .toList();
     }
 
+    @Override
     @Transactional
     public StaffResponse updateStaffUser(Long staffId, StaffUpdateRequest request) {
-        User staff = (User)this.userRepository.findById(staffId).orElseThrow(() -> new ResourceNotFoundException("Staff member not found with id: " + staffId));
+        User staff = this.userRepository.findById(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found with id: " + staffId));
+
         boolean isStaff = staff.getRoles().stream().anyMatch((r) -> r.getRole() == RoleName.STAFF);
         if (!isStaff) {
             throw new BadRequestException("Selected user is not a staff member");
         } else {
+            // Email နှင့် Phone နံပါတ် Duplicate ဖြစ်မဖြစ် စစ်ဆေးခြင်း
             this.userRepository.findByEmail(request.getEmail()).ifPresent((existingUser) -> {
                 if (!existingUser.getId().equals(staffId)) {
                     throw new BadRequestException("Email is already registered by another user");
@@ -177,42 +181,20 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                     throw new BadRequestException("Phone number is already registered by another user");
                 }
             });
-            if (request.getProfileImage() != null && !request.getProfileImage().isEmpty()) {
-                try {
-                    Path uploadPath = Paths.get("uploads/profile-pictures/");
-                    if (!Files.exists(uploadPath, new LinkOption[0])) {
-                        Files.createDirectories(uploadPath);
-                    }
 
-                    String var10000 = UUID.randomUUID().toString();
-                    String imageFileName = var10000 + "_" + request.getProfileImage().getOriginalFilename();
-                    Path filePath = uploadPath.resolve(imageFileName);
-                    Files.copy(request.getProfileImage().getInputStream(), filePath, new CopyOption[]{StandardCopyOption.REPLACE_EXISTING});
-                    staff.setProfilePicture(imageFileName);
-                } catch (IOException e) {
-                    throw new BadRequestException("Failed to store updated staff profile image: " + e.getMessage());
-                }
-            }
-
+            // 🌟 လိုအပ်သော ကိုယ်ရေးအချက်အလက် (၄) ခုကိုသာ ရိုးရှင်းစွာ Update လုပ်ပါသည်
             staff.setFullName(request.getFullName());
             staff.setEmail(request.getEmail());
             staff.setPhone(request.getPhoneNumber());
-            staff.setGender(request.getGender());
-            List<BusinessService> services;
-            if (request.getSpecializedServiceIds() != null && !request.getSpecializedServiceIds().isEmpty()) {
-                services = this.serviceRepository.findAllById(request.getSpecializedServiceIds());
-            } else {
-                services = this.serviceRepository.findAll();
+
+            if (request.getDateOfBirth() != null) {
+                staff.setDateOfBirth(request.getDateOfBirth());
             }
 
-            if (staff.getStaffProfile() != null) {
-                staff.getStaffProfile().setSpecializedServices(new HashSet(services));
-            } else {
-                StaffProfile profile = StaffProfile.builder().user(staff).isAvailable(true).specializedServices(new HashSet(services)).rating((double)0.0F).joinedAt(Instant.now()).build();
-                staff.setStaffProfile(profile);
-            }
+            // 💡 မှတ်ချက် - gender, profilePicture, specializedServices များကို ဘာမှမလုပ်ဘဲ နဂိုအတိုင်း ချန်ထားခဲ့ပါသည်
 
-            return this.mapToStaffResponse((User)this.userRepository.save(staff));
+            User updatedStaff = this.userRepository.save(staff);
+            return this.mapToStaffResponse(updatedStaff);
         }
     }
 
@@ -243,13 +225,27 @@ public class StaffManagementServiceImpl implements StaffManagementService {
 
     // 🌟 တည်ငြိမ်ပြီး စိတ်ချရသော တစ်ခုတည်းသော Mapper Method
     private StaffResponse mapToStaffResponse(User user) {
+        // ရက်စွဲ Format များ သတ်မှတ်ခြင်း
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a")
+                .withZone(ZoneId.of("Asia/Yangon"));
+
+        // 🌟 မွေးနေ့အတွက် Format သီးသန့် သတ်မှတ်ခြင်း (ဥပမာ - 2000-09-27)
+        DateTimeFormatter dobFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
                 .withZone(ZoneId.of("Asia/Yangon"));
 
         String formattedDate = user.getCreatedAt() != null ? formatter.format(user.getCreatedAt()) : null;
 
-        // 🌟 User ထဲမှတစ်ဆင့် StaffProfile ကို ယူပြီး isAvailable ကို Null-safe ဖြစ်အောင် ဆွဲထုတ်ခြင်း
+        // 🌟 User Entity ထဲမှ Instant dateOfBirth ကို String ပြောင်းလဲခြင်း
+        String formattedDob = user.getDateOfBirth() != null ? dobFormatter.format(user.getDateOfBirth()) : null;
+
         boolean availableStatus = user.getStaffProfile() != null && user.getStaffProfile().isAvailable();
+
+        List<Long> serviceIds = new java.util.ArrayList<>();
+        if (user.getStaffProfile() != null && user.getStaffProfile().getSpecializedServices() != null) {
+            serviceIds = user.getStaffProfile().getSpecializedServices().stream()
+                    .map(BusinessService::getId)
+                    .toList();
+        }
 
         return StaffResponse.builder()
                 .id(user.getId())
@@ -260,8 +256,10 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                 .gender(user.getGender())
                 .profilePicture(user.getProfilePicture())
                 .enabled(user.isEnabled())
-                .isAvailable(availableStatus) // 🌟 ကွက်တိ Map ဖြစ်သွားပါပြီ
+                .isAvailable(availableStatus)
                 .createdAt(formattedDate)
+                .dateOfBirth(formattedDob) // 🌟 ဤနေရာတွင် မွေးနေ့ကို Response ထဲ ကွက်တိ ထည့်ပေးလိုက်ပါပြီဗျာ
+                .specializedServiceIds(serviceIds)
                 .build();
     }
 }

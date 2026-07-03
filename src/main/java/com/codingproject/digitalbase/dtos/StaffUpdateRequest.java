@@ -1,10 +1,8 @@
 package com.codingproject.digitalbase.dtos;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import java.util.List;
 import lombok.*;
-import org.springframework.web.multipart.MultipartFile;
+import java.time.Instant; // သို့မဟုတ် ဆရာကြီး သုံးထားသော Date Type (LocalDate)
 
 @Data
 @Builder
@@ -12,20 +10,14 @@ import org.springframework.web.multipart.MultipartFile;
 @AllArgsConstructor
 public class StaffUpdateRequest {
 
-    @NotBlank(message = "Full name is required")
+    @NotBlank(message = "Full name cannot be empty")
     private String fullName;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email cannot be empty")
     private String email;
 
-    private List<Long> specializedServiceIds;
-
-    @NotBlank(message = "Phone number is required")
+    @NotBlank(message = "Phone number cannot be empty")
     private String phoneNumber;
 
-    @NotBlank(message = "Gender is required")
-    private String gender;
-
-    private MultipartFile profileImage;
+    private Instant dateOfBirth; // 🌟 ပြင်ဆင်မည့် မွေးနေ့
 }

@@ -15,4 +15,6 @@ public interface DashboardService {
     DashboardStatsResponse getDashboardStats();
 
     List<ChartDataPoint> getChartData(String period);
+
+    StaffPerformance getStaffPerformanceById(Long staffId);
 }

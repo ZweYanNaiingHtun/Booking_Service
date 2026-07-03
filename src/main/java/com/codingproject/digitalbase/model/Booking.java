@@ -72,9 +72,10 @@ public class Booking {
     @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Payment payment;
 
-
-
     private String cancelledBy;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
 
 
 

@@ -9,6 +9,8 @@ import java.security.Principal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -55,16 +57,23 @@ public class BookingController {
         return ResponseEntity.ok(this.bookingService.confirmBooking(id));
     }
 
-    @PutMapping({"/{id}/reject"})
+    @PutMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'STAFF')")
-    public ResponseEntity<BookingResponse> rejectBooking(@PathVariable Long id) {
-        return ResponseEntity.ok(this.bookingService.cancelBooking(id, "ADMIN", (String)null));
+    public ResponseEntity<BookingResponse> cancelAdminBooking(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> requestBody) {
+
+        // Frontend (React) ဘက်က { "reason": "..." } ဆိုပြီး လှမ်းပို့လာမည့်စာသားကို ဖတ်ခြင်း
+        String reason = (requestBody != null) ? requestBody.get("reason") : null;
+
+        // Service ထံသို့ reason ပါ တစ်ပါတည်း လွှဲပေးလိုက်ခြင်း
+        return ResponseEntity.ok(this.bookingService.cancelBookingByAdmin(id, "ADMIN", null, reason));
     }
 
     @PutMapping({"/{id}/cancel"})
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<BookingResponse> cancelCustomerBooking(@PathVariable Long id, Principal principal) {
-        return ResponseEntity.ok(this.bookingService.cancelBooking(id, "CUSTOMER", principal.getName()));
+        return ResponseEntity.ok(this.bookingService.cancelBookingByCustomer(id, "CUSTOMER", principal.getName()));
     }
 
     @GetMapping({"/all"})

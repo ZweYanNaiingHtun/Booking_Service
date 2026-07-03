@@ -93,7 +93,7 @@ public class DashboardServiceImpl implements DashboardService {
                                 metric.setProfileImage("https://api.mari.com/uploads/" + profile.getId() + ".jpg");
 
                                 if (profile.getUser() != null) {
-                                    metric.setPhoneNumber(profile.getUser().getPhone ());
+                                    metric.setPhoneNumber(profile.getUser().getPhone());
                                     metric.setEmail(profile.getUser().getEmail());
                                 }
 
@@ -113,7 +113,15 @@ public class DashboardServiceImpl implements DashboardService {
                                     metric.setStatus("Available");
                                 }
 
-                                // ======== 🌟 ဝန်ထမ်းတစ်ဦးချင်းစီအတွက် (For Each Staff) Revenue & Commission တွက်ချက်ခြင်း ========
+                                // ======== 🌟 ဝန်ထမ်းတစ်ဦးချင်းစီ၏ ကျွမ်းကျင်ဝန်ဆောင်မှု (Specialized Services) IDs များ ဖြည့်သွင်းခြင်း ========
+                                if (profile.getSpecializedServices() != null) {
+                                    List<Long> serviceIds = profile.getSpecializedServices().stream()
+                                            .map(service -> service.getId()) // သို့မဟုတ် com.codingproject.digitalbase.model.BusinessService::getId
+                                            .toList();
+                                    metric.setSpecializedServiceIds(serviceIds); // StaffPerformance DTO ထဲသို့ ID List ထည့်ခြင်း
+                                }
+
+                                // ======== ဝန်ထမ်းတစ်ဦးချင်းစီအတွက် (For Each Staff) Revenue & Commission တွက်ချက်ခြင်း ========
                                 double revenue = profile.getAssignedBookings().stream()
                                         .filter(b -> b.getStatus() == com.codingproject.digitalbase.enums.BookingStatus.COMPLETED)
                                         .filter(b -> b.getPayment() != null && b.getPayment().getAmount() != null)
@@ -134,6 +142,16 @@ public class DashboardServiceImpl implements DashboardService {
                     return Long.compare(s2.getCompletedJobsCount(), s1.getCompletedJobsCount());
                 })
                 .toList(); // 🌟 ဒေတာကို Wrapper မပါဘဲ Flat List အဖြစ် တိုက်ရိုက် ပြန်ပေးလိုက်ပါတယ်
+    }
+
+    @Override
+    public StaffPerformance getStaffPerformanceById(Long staffId) {
+        // 💡 နဂိုရှိပြီးသား ရလဒ်အစုံထဲကနေ ပေးလိုက်တဲ့ staffId နဲ့ ကွက်တိတူတဲ့ လူတစ်ယောက်တည်းကိုပဲ စစ်ထုတ်ယူပါတယ်
+        return this.getStaffPerformanceRanking().stream()
+                .filter(metric -> metric.getStaffId().equals(staffId))
+                .findFirst()
+                .orElseThrow(() -> new com.codingproject.digitalbase.exception.ResourceNotFoundException(
+                        "Staff performance data not found for id: " + staffId));
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.codingproject.digitalbase.dtos;
 
 import lombok.*;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Builder
@@ -28,6 +29,7 @@ public class StaffPerformance {
     // ======== 🌟 Staff Management_2.png (Nail Artist Performance) အတွက် ထပ်တိုးကော်လံများ ========
     private Double totalRevenue;      // Revenue (e.g., 1000000.0)
     private Double totalCommission;   // Commission (e.g., 200000.0)
+    private List<Long> specializedServiceIds;
 
     // 🌟 Database Native Projection Mapping အတွက် Object Constructor ကို နဂိုအတိုင်း ထည့်သွင်းထားပါတယ်
     // (ကျန်တဲ့ Field အသစ်တွေကို Null သို့မဟုတ် Default Value သတ်မှတ်ပေးထားလို့ Query Run ရင် Error တက်မှာ မဟုတ်တော့ပါဘူး)

@@ -10,13 +10,9 @@ public interface UserService {
     // 🌟 စာမျက်နှာဖွင့်ဖွင့်ချင်း Profile ဒေတာဆွဲထုတ်ရန် ထပ်တိုးလိုက်သည့် Method
     UserProfileResponse getMyProfile(String email);
 
-    UserProfileResponse updateMyProfile(UpdateProfileRequest request);
-
-    void sendPhoneUpdateOtp();
-
-    void verifyAndUpdatePhone(VerifyPhoneUpdateRequest request);
-
     UserProfileResponse updateProfilePhoto(String email, MultipartFile profileImage);
 
     UserProfileResponse changePassword(String email, ChangePasswordRequest request);
+
+    void updatePhoneDirect(String email, String newPhone);
 }

@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.domain.Page;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface BookingService {
     List<StaffTimeSlotResponse> getAvailableSlotsForStaffAndDate(Long staffUserId, Long serviceId, LocalDate date);
@@ -24,7 +25,9 @@ public interface BookingService {
 
     BookingResponse confirmBooking(Long id);
 
-    BookingResponse cancelBooking(Long id, String cancelledBy, String userEmail);
+    BookingResponse cancelBookingByAdmin(Long id, String cancelledBy, String userEmail, String reason);
+
+    BookingResponse cancelBookingByCustomer(Long id, String cancelledBy, String userEmail);
 
     void assignStaffToBooking(Long bookingId, @NotNull(
             message = "Staff ID is required"
