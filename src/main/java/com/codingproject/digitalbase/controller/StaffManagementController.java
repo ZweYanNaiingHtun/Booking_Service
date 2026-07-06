@@ -38,12 +38,12 @@ public class StaffManagementController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping({"/{staffId}/services"})
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<StaffResponse> linkServicesToStaff(@PathVariable("staffId") Long staffId, @RequestBody List<Long> serviceIds) {
-        StaffResponse response = this.staffService.linkStaffWithServices(staffId, serviceIds);
-        return ResponseEntity.ok(response);
-    }
+//    @PutMapping({"/{staffId}/services"})
+//    @PreAuthorize("hasRole('SUPER_ADMIN')")
+//    public ResponseEntity<StaffResponse> linkServicesToStaff(@PathVariable("staffId") Long staffId, @RequestBody List<Long> serviceIds) {
+//        StaffResponse response = this.staffService.linkStaffWithServices(staffId, serviceIds);
+//        return ResponseEntity.ok(response);
+//    }
 
     @GetMapping
     public ResponseEntity<List<StaffResponse>> getAllStaffs() {

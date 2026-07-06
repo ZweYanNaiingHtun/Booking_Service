@@ -153,14 +153,25 @@ public class DashboardServiceImpl implements DashboardService {
                 .orElseThrow(() -> new com.codingproject.digitalbase.exception.ResourceNotFoundException(
                         "Staff performance data not found for id: " + staffId));
     }
-
     @Override
     public List<TodayBookingResponse> getTodayBookingsFeed() {
         ZoneId sysZone = ZoneId.systemDefault();
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a");
 
+        // 🌟 ၁။ ယနေ့ ရက်စွဲကို စနစ်ရဲ့ Timezone အလိုက် အရင်ရယူထားမည်
+        LocalDate today = LocalDate.now(sysZone);
+
         return this.bookingRepository.findAll().stream()
+                // ၂။ Status စစ်ထုတ်ခြင်း (ဆရာကြီး၏ မူလကုဒ်)
                 .filter(b -> b.getStatus() == BookingStatus.CONFIRMED || b.getStatus() == BookingStatus.PENDING)
+
+                // 🌟 ၃။ အရေးကြီးဆုံးအချက် - ယနေ့ရက်စွဲ ဟုတ်မဟုတ် ထပ်မံ စစ်ထုတ်ခြင်း Filter
+                .filter(b -> {
+                    if (b.getBookingDate() == null) return false;
+                    // Instant အား LocalDate သို့ ပြောင်းလဲခြင်း
+                    LocalDate bookingDate = b.getBookingDate().atZone(sysZone).toLocalDate();
+                    return bookingDate.equals(today); // ယနေ့ရက်စွဲနှင့် ကွက်တိ တူညီမှသာ သိမ်းမည်
+                })
                 .map(b -> {
                     String serviceName = (b.getBusinessService() != null) ? b.getBusinessService().getName() : "Unknown Service";
                     java.math.BigDecimal servicePrice = (b.getBusinessService() != null) ? b.getBusinessService().getPrice() : java.math.BigDecimal.ZERO;
@@ -170,8 +181,6 @@ public class DashboardServiceImpl implements DashboardService {
                         formattedTime = b.getBookingDate().atZone(sysZone).toLocalTime().format(timeFormatter);
                     }
 
-                    // 🌟 Booking ထဲမှ တာဝန်ကျထားသော ဝန်ထမ်းအမည် (Staff Name) ကို ဆွဲထုတ်ခြင်း
-                    // (မှတ်ချက် - ဆရာကြီးရဲ့ Booking Entity ထဲက Field နာမည်အလိုက် b.getAssignedStaff() သို့မဟုတ် b.getStaffProfile() ဟု ပြောင်းလဲပေးနိုင်ပါတယ်)
                     String staffName = "Unassigned";
                     if (b.getAssignedStaff() != null && b.getAssignedStaff().getUser() != null) {
                         staffName = b.getAssignedStaff().getUser().getFullName();
@@ -179,7 +188,7 @@ public class DashboardServiceImpl implements DashboardService {
 
                     return TodayBookingResponse.builder()
                             .id("BK-" + b.getId())
-                            .staffName(staffName) // 🌟 customerName နေရာမှာ staffName ကို အစားထိုးလိုက်ပါပြီဗျာ
+                            .staffName(staffName)
                             .serviceNames(serviceName)
                             .bookingTime(formattedTime)
                             .price(servicePrice)

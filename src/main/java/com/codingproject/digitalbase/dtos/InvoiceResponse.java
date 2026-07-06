@@ -16,7 +16,6 @@ public class InvoiceResponse {
     private String staffName;
     private String serviceName;
     private BigDecimal price;
-    private BigDecimal tax;
     private BigDecimal totalAmount;
     private String completedAt;
 }

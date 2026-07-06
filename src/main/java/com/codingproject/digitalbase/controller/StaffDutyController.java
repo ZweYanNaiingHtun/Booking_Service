@@ -12,7 +12,7 @@ import com.codingproject.digitalbase.enums.HistoryFilter;
 import com.codingproject.digitalbase.service.BookingService;
 import java.time.LocalDate;
 import java.util.List;
-import lombok.Generated;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
@@ -32,7 +32,7 @@ public class StaffDutyController {
     @GetMapping({"/my-duties"})
     @PreAuthorize("hasAnyRole('STAFF', 'SUPER_ADMIN')")
     public ResponseEntity<List<StaffDutyResponse>> getMyDuties(@RequestParam("date") @DateTimeFormat(iso = ISO.DATE) LocalDate date, @RequestParam("status") BookingStatus status) {
-        List<StaffDutyResponse> duties = this.bookingService.getStaffWeeklyDuties(date, status);
+        List<StaffDutyResponse> duties = this.bookingService.getStaffDailyDuties(date, status);
         return ResponseEntity.ok(duties);
     }
 

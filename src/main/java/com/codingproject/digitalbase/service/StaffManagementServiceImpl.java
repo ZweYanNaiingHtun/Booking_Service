@@ -101,26 +101,26 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         }
     }
 
-    @Transactional
-    public StaffResponse linkStaffWithServices(Long staffId, List<Long> serviceIds) {
-        User staff = (User)this.userRepository.findById(staffId).orElseThrow(() -> new ResourceNotFoundException("Staff member not found with id: " + staffId));
-        boolean isStaff = staff.getRoles().stream().anyMatch((r) -> r.getRole() == RoleName.STAFF);
-        if (!isStaff) {
-            throw new BadRequestException("Selected user is not a staff member");
-        } else {
-            List<BusinessService> services = serviceIds != null && !serviceIds.isEmpty() ? this.serviceRepository.findAllById(serviceIds) : Collections.emptyList();
-            if (staff.getStaffProfile() != null) {
-                staff.getStaffProfile().setSpecializedServices(new HashSet(services));
-            } else {
-                StaffProfile profile = StaffProfile.builder().user(staff).isAvailable(true).specializedServices(new HashSet(services)).rating((double)0.0F).joinedAt(Instant.now()).build();
-                staff.setStaffProfile(profile);
-            }
-
-            User updatedStaff = (User)this.userRepository.save(staff);
-            log.info("🎯 Successfully updated specialized services for staff code: {}", updatedStaff.getCode());
-            return this.mapToStaffResponse(updatedStaff);
-        }
-    }
+//    @Transactional
+//    public StaffResponse linkStaffWithServices(Long staffId, List<Long> serviceIds) {
+//        User staff = (User)this.userRepository.findById(staffId).orElseThrow(() -> new ResourceNotFoundException("Staff member not found with id: " + staffId));
+//        boolean isStaff = staff.getRoles().stream().anyMatch((r) -> r.getRole() == RoleName.STAFF);
+//        if (!isStaff) {
+//            throw new BadRequestException("Selected user is not a staff member");
+//        } else {
+//            List<BusinessService> services = serviceIds != null && !serviceIds.isEmpty() ? this.serviceRepository.findAllById(serviceIds) : Collections.emptyList();
+//            if (staff.getStaffProfile() != null) {
+//                staff.getStaffProfile().setSpecializedServices(new HashSet(services));
+//            } else {
+//                StaffProfile profile = StaffProfile.builder().user(staff).isAvailable(true).specializedServices(new HashSet(services)).rating((double)0.0F).joinedAt(Instant.now()).build();
+//                staff.setStaffProfile(profile);
+//            }
+//
+//            User updatedStaff = (User)this.userRepository.save(staff);
+//            log.info("🎯 Successfully updated specialized services for staff code: {}", updatedStaff.getCode());
+//            return this.mapToStaffResponse(updatedStaff);
+//        }
+//    }
 
     private String generateStrongPassword() {
         String upperCaseLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

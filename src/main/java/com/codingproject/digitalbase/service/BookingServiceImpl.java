@@ -192,7 +192,6 @@ public class BookingServiceImpl implements BookingService {
         ZonedDateTime zonedDateTime = customerBookingInstant.atZone(zoneId);
         LocalTime customerStartTime = zonedDateTime.toLocalTime();
 
-        // Rigid Slot Validation (၁ နာရီ ကွက်တိ ဟုတ်မဟုတ် စစ်ဆေးခြင်း)
         if (zonedDateTime.getMinute() != 0 || zonedDateTime.getSecond() != 0) {
             throw new BadRequestException("Booking Denied! Invalid time selection. Please choose an exact rigid hour slot from the calendar (e.g., 09:00 AM, 10:00 AM).");
         }
@@ -222,7 +221,7 @@ public class BookingServiceImpl implements BookingService {
 
         boolean hasExistingBooking = bookingRepository.existsByCustomerIdAndBookingDateAndStatusIn(
                 currentUser.getId(),
-                customerBookingInstant, // Instant အတိုင်း တိုက်ရိုက်စစ်ဆေးသည်
+                customerBookingInstant,
                 activeStatuses
         );
 
@@ -238,10 +237,9 @@ public class BookingServiceImpl implements BookingService {
 
         List<StaffProfile> activeStaffProfiles = staffProfileRepository.findByIsAvailableTrue();
 
-        // Updated Helper Method သို့ Instant parameters များ ပေးပို့ခြင်း
         List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(customerBookingInstant, staffStartTime, staffEndTime, bufferMinutes);
 
-        // 🌟 ၃။ Repository အသစ်ပုံစံအတိုင်း အချိန်ပေးပို့၍ ဆိုင် Capacity စစ်ဆေးခြင်း
+        // 🌟 ၃။ ဆိုင် Capacity စစ်ဆေးခြင်း
         long confirmedBusyCount = activeStaffProfiles.stream()
                 .filter(sp -> staffAssignmentRepository.isStaffBusy(sp.getUser().getId(), staffStartTime, staffEndTime))
                 .count();
@@ -257,15 +255,9 @@ public class BookingServiceImpl implements BookingService {
             requestedStaffProfile = staffProfileRepository.findByUserId(request.getRequestedStaffId())
                     .orElseThrow(() -> new ResourceNotFoundException("Requested staff profile not found"));
 
-            boolean isSpecialized = requestedStaffProfile.getSpecializedServices().stream()
-                    .anyMatch(s -> s.getId().equals(service.getId()));
+            // ❌ [REMOVED] ကျွမ်းကျင်မှုစစ်ဆေးသည့် ကုဒ်အပိုင်းအစကို ဖယ်ရှားလိုက်ပါပြီဗျာ ✨
 
-            if (!isSpecialized) {
-                throw new BadRequestException(String.format("Booking Denied! Staff '%s' does not provide '%s' service. Please select another staff member.",
-                        requestedStaffProfile.getUser().getFullName(), service.getName()));
-            }
-
-            // 🌟 ၄။ တောင်းဆိုထားသော ဝန်ထမ်း အလုပ်အား/မအား Instant ဖြင့် စစ်ဆေးခြင်း
+            // 🌟 ၄။ တောင်းဆိုထားသော ဝန်ထမ်း အလုပ်အား/မအား Instant ဖြင့် တိုက်ရိုက် စစ်ဆေးခြင်း
             boolean isBusy = staffAssignmentRepository.isStaffBusy(requestedStaffProfile.getUser().getId(), staffStartTime, staffEndTime);
             if (isBusy) {
                 throw new BadRequestException("The requested staff is busy or in preparation/cleanup time for another booking. Please choose another time slot!");
@@ -280,6 +272,7 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+        // Booking အား ဆောက်ရွက်ခြင်း အပိုင်း
         Booking booking = new Booking();
         booking.setCustomer(currentUser);
         booking.setCreatedBy(currentUser);
@@ -701,37 +694,29 @@ public class BookingServiceImpl implements BookingService {
         // Active ဖြစ်သော Staff များကို ယူခြင်း
         List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
 
-        if (serviceId != null) {
-            activeProfiles = activeProfiles.stream()
-                    .filter(profile -> profile.getSpecializedServices().stream()
-                            .anyMatch(service -> service.getId().equals(serviceId)))
-                    .toList();
-        }
-
         // 🌟 ၃။ Helper Method သို့ Instant Parameters များ ပေးပို့ခြင်း
         List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(bookingDate, staffStartTime, staffEndTime, bufferMinutes);
 
         return activeProfiles.stream()
                 .map(profile -> {
-                    Long staffUserId = profile.getUser().getId();
-                    Long staffProfileId = profile.getId();
+                    Long staffUserId = profile.getUser().getId(); // 🌟 ဝန်ထမ်း၏ User ID
+                    Long staffProfileId = profile.getId();        // ဝန်ထမ်း၏ Staff Profile ID
 
-                    // (က) Confirmed ဖြစ်ပြီးသား အလုပ်ရှိမရှိ Instant ဖြင့် စစ်ဆေးခြင်း
+                    // (က) Busy ဖြစ်မဖြစ် စစ်ဆေးခြင်း Logic များ... (ဆရာကြီး၏ မူလကုဒ်အတိုင်း)
                     boolean isStaffBusy = staffAssignmentRepository.isStaffBusy(staffUserId, staffStartTime, staffEndTime);
-
-                    // (ခ) အခြားသူက ဤဝန်ထမ်းအား တောင်းဆိုထားသော Pending ရှိမရှိ စစ်ဆေးခြင်း
                     boolean isRequestedByOtherPending = overlappingPendingBookings.stream()
                             .anyMatch(pb -> pb.getRequestedStaff() != null && pb.getRequestedStaff().getUser().getId().equals(staffUserId));
 
                     boolean isAvailable = !isStaffBusy && !isRequestedByOtherPending;
 
-                    // (ဂ) ဝန်ထမ်းတစ်ဦးချင်းစီ၏ အလုပ်အရေအတွက် တွက်ချက်ခြင်း
                     long confirmedCount = staffAssignmentRepository.countConfirmedByStaffUserId(staffUserId);
                     long pendingCount = bookingRepository.countPendingByStaffProfileId(staffProfileId);
                     int totalBookingCount = (int) (confirmedCount + pendingCount);
 
+                    // 🌟 Response ဆောက်သည့်နေရာတွင် userId ကိုပါ ထည့်သွင်း Build လုပ်ခြင်း
                     return CustomerStaffResponse.builder()
-                            .staffProfileId(profile.getId())
+                            .userId(staffUserId) // 🔥 ဤလိုင်းလေး ဖြည့်စွက်ပါ ဆရာကြီး
+                            .staffProfileId(staffProfileId)
                             .fullName(profile.getUser().getFullName())
                             .profilePicture(profile.getUser().getProfilePicture())
                             .specializedName("Nail Artist")
@@ -754,6 +739,7 @@ public class BookingServiceImpl implements BookingService {
                     int totalBooking = profile.getAssignedBookings() != null ? profile.getAssignedBookings().size() : 0;
 
                     return HomeStaffResponse.builder()
+                            .userId(profile.getUser().getId())
                             .staffProfileId(profile.getId())
                             .fullName(profile.getUser().getFullName())
                             .profilePicture(profile.getUser().getProfilePicture())
@@ -767,180 +753,238 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    public List<User> getAvailableStaffForDateTime(Instant bookingDate) {
-        // 🌟 ဝန်ဆောင်မှုမသိရသေးသဖြင့် အခြေခံ ၁ နာရီ slot အပြင် Buffer အား Instant ဖြင့်သာ တွက်ချက်မည်
+    public List<AvailableStaffResponse> getAvailableStaffForDateTime(Instant bookingDate) {
         int bufferMinutes = 10;
         Instant staffStartTime = bookingDate.minus(Duration.ofMinutes(bufferMinutes));
         Instant staffEndTime = bookingDate.plus(Duration.ofMinutes(60 + bufferMinutes));
 
         List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
 
-        // Helper Method သို့ ပေးပို့ခြင်း
         List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(bookingDate, staffStartTime, staffEndTime, bufferMinutes);
 
         return activeProfiles.stream()
-                .map(StaffProfile::getUser)
-                .filter(user -> {
-                    Long staffUserId = user.getId();
+                .filter(profile -> {
+                    Long staffUserId = profile.getUser().getId();
                     boolean isStaffBusy = staffAssignmentRepository.isStaffBusy(staffUserId, staffStartTime, staffEndTime);
                     boolean isRequestedByOtherPending = overlappingPendingBookings.stream()
                             .anyMatch(pb -> pb.getRequestedStaff() != null && pb.getRequestedStaff().getUser().getId().equals(staffUserId));
                     return !isStaffBusy && !isRequestedByOtherPending;
                 })
+                // 🌟 Entity အစား Frontend အတွက် လိုအပ်သော ဒေတာသန့်သန့်လေးကိုသာ Map လုပ်၍ ပြန်ပေးခြင်း
+                .map(profile -> AvailableStaffResponse.builder()
+                        .userId(profile.getUser().getId())
+                        .staffProfileId(profile.getId())
+                        .fullName(profile.getUser().getFullName())
+                        .profilePicture(profile.getUser().getProfilePicture())
+                        .build())
                 .toList();
     }
 
     @Transactional
     public BookingResponse acceptBooking(Long id) {
-        Booking booking = (Booking)this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-        if (booking.getStatus() != BookingStatus.CONFIRMED) {
-            throw new BadRequestException("Only CONFIRMED bookings can be accepted.");
-        } else {
-            User currentStaff = this.getCurrentAuthenticatedUser();
-            StaffProfile currentStaffProfile = currentStaff.getStaffProfile();
-            System.out.println("=== DEBUGGING ID MISMATCH ===");
-            System.out.println("Booking Requested Staff Profile ID: " + booking.getRequestedStaff().getId());
-            System.out.println("Current Logged-in Staff Profile ID: " + currentStaffProfile.getId());
-            System.out.println("=============================");
-            if (booking.getAssignedStaff() != null && booking.getAssignedStaff().getId().equals(currentStaffProfile.getId())) {
-                booking.setStatus(BookingStatus.IN_PROGRESS);
-                if (booking.getStaffAssignment() != null) {
-                    booking.getStaffAssignment().setBooked(true);
-                }
+        Booking booking = this.bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
-                Booking savedBooking = (Booking)this.bookingRepository.save(booking);
-                return this.mapToResponse(savedBooking);
-            } else {
-                throw new BadRequestException("Unauthorized! You are not the assigned staff member for this booking.");
+        // 💡 လုပ်ငန်းစဉ်အရ PENDING ရော CONFIRMED ပါ ဝန်ထမ်းက တိုက်ရိုက် Accept လုပ်ခွင့်ပေးရန် Status နှစ်ခုလုံး စစ်ပေးထားပါသည်
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING) {
+            throw new BadRequestException("Only PENDING or CONFIRMED bookings can be accepted.");
+        }
+
+        User currentStaff = this.getCurrentAuthenticatedUser();
+        StaffProfile currentStaffProfile = currentStaff.getStaffProfile();
+        if (currentStaffProfile == null) {
+            throw new ResourceNotFoundException("လက်ရှိ Login ဝင်ထားသော အကောင့်တွင် Staff Profile မရှိပါ။");
+        }
+
+        // 🌟 [FIX] တရားဝင် တာဝန်ပေးခံရသူ သို့မဟုတ် ဝယ်သူကိုယ်တိုင် တောင်းဆိုထားသည့် ဝန်ထမ်း ဟုတ်မဟုတ် စစ်ဆေးခြင်း
+        boolean isAssignedStaff = booking.getAssignedStaff() != null && booking.getAssignedStaff().getId().equals(currentStaffProfile.getId());
+        boolean isRequestedStaff = booking.getRequestedStaff() != null && booking.getRequestedStaff().getId().equals(currentStaffProfile.getId());
+
+        if (isAssignedStaff || isRequestedStaff) {
+            booking.setStatus(BookingStatus.IN_PROGRESS);
+
+            // 🌟 အကယ်၍ ဝန်ထမ်းမသတ်မှတ်ရသေးပါက (ဥပမာ PENDING မှ တန်းပြီး Accept လုပ်ပါက) လက်ရှိဝန်ထမ်းအား Assigned လုပ်ပေးခြင်း
+            if (booking.getAssignedStaff() == null) {
+                booking.setAssignedStaff(currentStaffProfile);
             }
+
+            if (booking.getStaffAssignment() != null) {
+                booking.getStaffAssignment().setBooked(true);
+            }
+
+            Booking savedBooking = this.bookingRepository.save(booking);
+            return this.mapToResponse(savedBooking);
+        } else {
+            throw new BadRequestException("Unauthorized! You are not the assigned or requested staff member for this booking.");
         }
     }
 
     @Transactional
     public BookingResponse completeBooking(Long id) {
-        Booking booking = (Booking)this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+        Booking booking = this.bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+
         if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
             throw new BadRequestException("Service cannot be completed because it is not currently IN_PROGRESS.");
-        } else {
-            booking.setStatus(BookingStatus.COMPLETED);
-            if (booking.getStaffAssignment() != null) {
-                booking.getStaffAssignment().setBooked(false);
-            }
-
-            Booking updatedBooking = (Booking)this.bookingRepository.save(booking);
-            Payment payment = updatedBooking.getPayment();
-            if (payment == null) {
-                BigDecimal baseAmount = updatedBooking.getBusinessService().getPrice();
-                payment = Payment.builder().booking(updatedBooking).baseAmount(baseAmount).extraAmount(BigDecimal.ZERO).amount(baseAmount).createdAt(Instant.now()).build();
-            }
-
-            Long var10000 = updatedBooking.getId();
-            String generatedInvoiceNumber = "INV-" + var10000 + "-" + System.currentTimeMillis() / 100000L;
-            payment.setInvoiceNumber(generatedInvoiceNumber);
-            payment.setStatus("COMPLETED");
-            payment.setPaymentDate(Instant.now());
-            this.paymentRepository.save(payment);
-            User customer = booking.getCustomer();
-            if (customer != null && customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
-                this.fcmService.sendPushNotification(customer.getFcmToken(), "Service Completed! \ud83c\udf89", "ဆရာ့ရဲ့ ဝန်ဆောင်မှု ပြီးမြောက်သွားပါပြီ။ ကျေးဇူးပြု၍ ကောင်တာတွင် ငွေရှင်းပေးပါရန်။");
-            }
-
-            return this.mapToResponse(updatedBooking);
         }
+
+        booking.setStatus(BookingStatus.COMPLETED);
+        if (booking.getStaffAssignment() != null) {
+            booking.getStaffAssignment().setBooked(false);
+        }
+
+        Booking updatedBooking = this.bookingRepository.save(booking);
+
+        Payment payment = updatedBooking.getPayment();
+        if (payment == null) {
+            BigDecimal baseAmount = updatedBooking.getBusinessService().getPrice();
+            payment = Payment.builder()
+                    .booking(updatedBooking)
+                    .baseAmount(baseAmount)
+                    .extraAmount(BigDecimal.ZERO)
+                    .amount(baseAmount)
+                    .createdAt(Instant.now())
+                    .build();
+        }
+
+        // 🧹 [CLEANED] Decompiled artifact (var10000) လိုင်းအား ဖြုတ်ပြီး သန့်ရှင်းရေးလုပ်ထားပါသည်
+        String generatedInvoiceNumber = "INV-" + updatedBooking.getId() + "-" + (System.currentTimeMillis() / 100000L);
+        payment.setInvoiceNumber(generatedInvoiceNumber);
+
+        // 🌟 [FIX] ကောင်တာတွင် ငွေရှင်းရန်ဖြစ်သဖြင့် စာရင်းဇယားတိကျစေရန် PENDING ဟုသာ အရင်သတ်မှတ်ပါမည်
+        payment.setStatus("PENDING");
+        payment.setPaymentDate(Instant.now());
+        this.paymentRepository.save(payment);
+
+        User customer = booking.getCustomer();
+        if (customer != null && customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
+            this.fcmService.sendPushNotification(
+                    customer.getFcmToken(),
+                    "Service Completed! 🎉",
+                    "ဆရာ့ရဲ့ ဝန်ဆောင်မှု ပြီးမြောက်သွားပါပြီ။ ကျေးဇူးပြု၍ ကောင်တာတွင် ငွေရှင်းပေးပါရန်။"
+            );
+        }
+
+        return this.mapToResponse(updatedBooking);
     }
 
-    @Transactional(
-            readOnly = true
-    )
+    @Transactional(readOnly = true)
     public InvoiceResponse generateInvoice(Long id) {
-        Booking booking = (Booking)this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+        Booking booking = this.bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+
         if (booking.getStatus() != BookingStatus.COMPLETED) {
             throw new BadRequestException("Invoice can only be generated for COMPLETED bookings.");
-        } else {
-            Payment payment = booking.getPayment();
-            if (payment == null) {
-                throw new ResourceNotFoundException("Payment record not found for this booking.");
-            } else {
-                BigDecimal baseAmount = payment.getBaseAmount() != null ? payment.getBaseAmount() : BigDecimal.ZERO;
-                BigDecimal extraAmount = payment.getExtraAmount() != null ? payment.getExtraAmount() : BigDecimal.ZERO;
-                BigDecimal totalAmount = baseAmount.add(extraAmount);
-                BigDecimal servicePrice = booking.getBusinessService().getPrice();
-                BigDecimal tax = servicePrice.multiply(new BigDecimal("0.05"));
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a").withZone(ZoneId.of("Asia/Yangon"));
-                return InvoiceResponse.builder().invoiceNumber(payment.getInvoiceNumber()).bookingId(booking.getId()).customerName(booking.getCustomer().getFullName()).customerPhone(booking.getCustomer().getPhone()).staffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getUser().getFullName() : "N/A").serviceName(booking.getBusinessService().getName()).price(baseAmount).tax(tax).totalAmount(totalAmount).completedAt(formatter.format(payment.getPaymentDate() != null ? payment.getPaymentDate() : Instant.now())).build();
-            }
         }
+
+        Payment payment = booking.getPayment();
+        if (payment == null) {
+            throw new ResourceNotFoundException("Payment record not found for this booking.");
+        }
+
+        BigDecimal baseAmount = payment.getBaseAmount() != null ? payment.getBaseAmount() : BigDecimal.ZERO;
+        BigDecimal extraAmount = payment.getExtraAmount() != null ? payment.getExtraAmount() : BigDecimal.ZERO;
+
+        // 🌟 [UPDATED] Tax တွက်ချက်မှုအား ဖယ်ရှားပြီး Base Amount နှင့် Extra Amount ကိုသာ တိုက်ရိုက်ပေါင်းပါသည်
+        BigDecimal totalAmount = baseAmount.add(extraAmount);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a").withZone(ZoneId.of("Asia/Yangon"));
+
+        return InvoiceResponse.builder()
+                .invoiceNumber(payment.getInvoiceNumber())
+                .bookingId(booking.getId())
+                .customerName(booking.getCustomer().getFullName())
+                .customerPhone(booking.getCustomer().getPhone())
+                .staffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getUser().getFullName() : "N/A")
+                .serviceName(booking.getBusinessService().getName())
+                .price(baseAmount)
+                .totalAmount(totalAmount)
+                .completedAt(formatter.format(payment.getPaymentDate() != null ? payment.getPaymentDate() : Instant.now()))
+                .build();
     }
 
-    public List<StaffDutyResponse> getStaffWeeklyDuties(LocalDate selectedDate, BookingStatus status) {
+    public List<StaffDutyResponse> getStaffDailyDuties(LocalDate selectedDate, BookingStatus status) {
         User currentStaffUser = this.getCurrentAuthenticatedUser();
-        StaffProfile staffProfile = (StaffProfile)this.staffProfileRepository.findByUserId(currentStaffUser.getId()).orElseThrow(() -> new ResourceNotFoundException("Staff Profile not found"));
+        StaffProfile staffProfile = this.staffProfileRepository.findByUserId(currentStaffUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Staff Profile not found"));
+
         ZoneId yangonZone = ZoneId.of("Asia/Yangon");
         Instant startOfDay = selectedDate.atStartOfDay(yangonZone).toInstant();
         Instant endOfDay = selectedDate.atTime(LocalTime.MAX).atZone(yangonZone).toInstant();
+
         List<Booking> bookings = this.bookingRepository.findStaffDutiesByDateAndStatus(staffProfile.getId(), startOfDay, endOfDay, status);
-        return bookings.stream().map((b) -> {
-            StaffDutyResponse dto = new StaffDutyResponse();
-            dto.setBookingId(b.getId());
-            dto.setCustomerName(b.getCustomer().getFullName());
-            dto.setServiceName(b.getBusinessService().getName());
-            dto.setBookingDate(b.getBookingDate());
-            dto.setDurationInMinutes(b.getBusinessService().getDurationInMinutes());
-            dto.setStatus(b.getStatus());
-            dto.setNotes(b.getNotes());
-            return dto;
-        }).collect(Collectors.toList());
+
+        return bookings.stream()
+                .map(b -> {
+                    StaffDutyResponse dto = new StaffDutyResponse();
+                    dto.setBookingId(b.getId());
+                    dto.setCustomerName(b.getCustomer().getFullName());
+                    dto.setServiceName(b.getBusinessService().getName());
+                    dto.setBookingDate(b.getBookingDate());
+                    dto.setDurationInMinutes(b.getBusinessService().getDurationInMinutes());
+                    dto.setStatus(b.getStatus());
+                    dto.setNotes(b.getNotes());
+                    return dto;
+                })
+                .toList(); // 🧹 Modern Java style သို့ ပြောင်းလဲခြင်း
     }
 
     public StaffHistoryResponse getStaffWorkHistory(HistoryFilter filter) {
         User currentStaffUser = this.getCurrentAuthenticatedUser();
-        StaffProfile staffProfile = (StaffProfile)this.staffProfileRepository.findByUserId(currentStaffUser.getId()).orElseThrow(() -> new ResourceNotFoundException("Staff Profile not found"));
+        StaffProfile staffProfile = this.staffProfileRepository.findByUserId(currentStaffUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Staff Profile not found"));
+
         ZoneId yangonZone = ZoneId.of("Asia/Yangon");
         ZonedDateTime now = ZonedDateTime.now(yangonZone);
         Instant startInstant;
         Instant endInstant;
+
         switch (filter) {
-            case TODAY:
+            case TODAY -> {
                 startInstant = now.with(LocalTime.MIN).toInstant();
                 endInstant = now.with(LocalTime.MAX).toInstant();
-                break;
-            case WEEKLY:
+            }
+            case WEEKLY -> {
                 ZonedDateTime startOfWeek = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).with(LocalTime.MIN);
                 ZonedDateTime endOfWeek = now.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).with(LocalTime.MAX);
                 startInstant = startOfWeek.toInstant();
                 endInstant = endOfWeek.toInstant();
-                break;
-            case MONTHLY:
+            }
+            case MONTHLY -> {
                 ZonedDateTime startOfMonth = now.with(TemporalAdjusters.firstDayOfMonth()).with(LocalTime.MIN);
                 ZonedDateTime endOfMonth = now.with(TemporalAdjusters.lastDayOfMonth()).with(LocalTime.MAX);
                 startInstant = startOfMonth.toInstant();
                 endInstant = endOfMonth.toInstant();
-                break;
-            default:
-                throw new BadRequestException("Invalid Filter Type");
+            }
+            default -> throw new BadRequestException("Invalid Filter Type");
         }
 
         List<Booking> completedBookings = this.bookingRepository.findStaffHistory(staffProfile.getId(), BookingStatus.COMPLETED, startInstant, endInstant);
-        List<StaffHistoryDetailResponse> details = completedBookings.stream().map((b) -> {
-            StaffHistoryDetailResponse item = new StaffHistoryDetailResponse();
-            item.setBookingId(b.getId());
-            item.setServiceName(b.getBusinessService().getName());
-            item.setCustomerName(b.getCustomer().getFullName());
-            item.setBookingDate(b.getBookingDate());
-            BigDecimal commissionPercent = new BigDecimal("0.10");
-            BigDecimal servicePrice = b.getBusinessService().getPrice();
-            if (servicePrice != null) {
-                BigDecimal calculatedCommission = servicePrice.multiply(commissionPercent);
-                item.setCommission(calculatedCommission);
-            } else {
-                item.setCommission(BigDecimal.ZERO);
-            }
 
-            return item;
-        }).collect(Collectors.toList());
-        BigDecimal totalCommissionSum = (BigDecimal)details.stream().map(StaffHistoryDetailResponse::getCommission).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // 🧹 Stream mapping အား ပိုမိုရှင်းလင်းအောင် ပြုပြင်ခြင်း
+        List<StaffHistoryDetailResponse> details = completedBookings.stream()
+                .map(b -> {
+                    StaffHistoryDetailResponse item = new StaffHistoryDetailResponse();
+                    item.setBookingId(b.getId());
+                    item.setServiceName(b.getBusinessService().getName());
+                    item.setCustomerName(b.getCustomer().getFullName());
+                    item.setBookingDate(b.getBookingDate());
+
+                    // ဝန်ထမ်း ကော်မရှင် ၁၀ ရာခိုင်နှုန်း တွက်ချက်ခြင်း
+                    BigDecimal commissionPercent = new BigDecimal("0.10");
+                    BigDecimal servicePrice = b.getBusinessService().getPrice();
+                    item.setCommission(servicePrice != null ? servicePrice.multiply(commissionPercent) : BigDecimal.ZERO);
+                    return item;
+                })
+                .toList();
+
+        BigDecimal totalCommissionSum = details.stream()
+                .map(StaffHistoryDetailResponse::getCommission)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         StaffHistoryResponse response = new StaffHistoryResponse();
-        response.setTotalJobsDone((long)details.size());
+        response.setTotalJobsDone((long) details.size());
         response.setTotalCommission(totalCommissionSum);
         response.setHistoryList(details);
         return response;
@@ -949,11 +993,13 @@ public class BookingServiceImpl implements BookingService {
     private User getCurrentAuthenticatedUser() {
         String testEmail = this.httpServletRequest.getHeader("X-Test-Email");
         if (testEmail != null && !testEmail.isEmpty()) {
-            return (User)this.userRepository.findByEmail(testEmail).orElseThrow(() -> new ResourceNotFoundException("Test User not found with email: " + testEmail));
-        } else {
-            String email = SecurityContextHolder.getContext().getAuthentication().getName();
-            return (User)this.userRepository.findByEmail(email).orElseThrow(() -> new UnauthorizedException("Authenticated user not found"));
+            return this.userRepository.findByEmail(testEmail)
+                    .orElseThrow(() -> new ResourceNotFoundException("Test User not found with email: " + testEmail));
         }
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return this.userRepository.findByEmail(email)
+                .orElseThrow(() -> new UnauthorizedException("Authenticated user not found"));
     }
 
     private BookingResponse mapToResponse(Booking booking) {

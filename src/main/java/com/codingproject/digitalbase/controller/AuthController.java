@@ -96,7 +96,7 @@ public class AuthController {
 
     @PutMapping({"/{userId}/fcm-token"})
     public ResponseEntity updateFcmToken(@PathVariable Long userId, @RequestParam String token) {
-        return (ResponseEntity)this.userRepository.findById(userId).map((user) -> {
+        return this.userRepository.findById(userId).map((user) -> {
             user.setFcmToken(token);
             this.userRepository.save(user);
             return ResponseEntity.ok("FCM Token updated successfully for user ID: " + userId);

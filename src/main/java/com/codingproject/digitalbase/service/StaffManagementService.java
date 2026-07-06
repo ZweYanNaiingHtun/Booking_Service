@@ -13,7 +13,7 @@ import java.util.List;
 public interface StaffManagementService {
     StaffResponse createStaffUser(StaffCreateRequest request);
 
-    StaffResponse linkStaffWithServices(Long staffId, List<Long> serviceIds);
+//    StaffResponse linkStaffWithServices(Long staffId, List<Long> serviceIds);
 
     List<StaffResponse> getAllStaffs();
 

@@ -8,13 +8,11 @@ package com.codingproject.digitalbase.service;
 import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.enums.HistoryFilter;
-import com.codingproject.digitalbase.model.User;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.domain.Page;
-import org.springframework.transaction.annotation.Transactional;
 
 public interface BookingService {
     List<StaffTimeSlotResponse> getAvailableSlotsForStaffAndDate(Long staffUserId, Long serviceId, LocalDate date);
@@ -33,7 +31,7 @@ public interface BookingService {
             message = "Staff ID is required"
     ) Long staffId);
 
-    List<User> getAvailableStaffForDateTime(Instant bookingDate);
+    List<AvailableStaffResponse> getAvailableStaffForDateTime(Instant bookingDate);
 
     BookingResponse acceptBooking(Long id);
 
@@ -49,7 +47,7 @@ public interface BookingService {
 
     List<HomeStaffResponse> getStaffListForHomePage();
 
-    List<StaffDutyResponse> getStaffWeeklyDuties(LocalDate selectedDate, BookingStatus status);
+    List<StaffDutyResponse> getStaffDailyDuties(LocalDate selectedDate, BookingStatus status);
 
     StaffHistoryResponse getStaffWorkHistory(HistoryFilter filter);
 

@@ -1,7 +1,6 @@
 package com.codingproject.digitalbase.controller;
 
 import com.codingproject.digitalbase.dtos.*;
-import com.codingproject.digitalbase.model.User;
 import com.codingproject.digitalbase.service.BookingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -11,7 +10,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -94,9 +92,9 @@ public class BookingController {
     }
 
     @GetMapping({"/available-staff"})
-    public ResponseEntity<List<User>> getAvailableStaff(@RequestParam("date") String dateStr) {
+    public ResponseEntity<List<AvailableStaffResponse>> getAvailableStaff(@RequestParam("date") String dateStr) {
         Instant bookingDate = Instant.parse(dateStr);
-        List<User> availableStaff = this.bookingService.getAvailableStaffForDateTime(bookingDate);
+        List<AvailableStaffResponse> availableStaff = this.bookingService.getAvailableStaffForDateTime(bookingDate);
         return ResponseEntity.ok(availableStaff);
     }
 

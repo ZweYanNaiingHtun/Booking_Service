@@ -32,7 +32,10 @@ public class BookingManagementServiceImpl implements BookingManagementService {
     public BookingOverviewWrapper getCustomerBookingsOverview(
             String search, String status, LocalDate startDate, LocalDate endDate, int page, int size) {
 
-        List<Booking> allBookings = this.bookingRepository.findAll();
+        List<Booking> allBookings = this.bookingRepository.findAll().stream()
+                .filter(b -> b.getCustomer() != null && !"walkin@system.com".equals(b.getCustomer().getEmail()))
+                // 💡 သို့မဟုတ် b.getCustomer().getCode() ကို သုံးချင်ပါက: !"CU-WALKIN".equals(b.getCustomer().getCode())
+                .toList();
 
         // 🌟 အဆင့် (၁) - Counter တွက်ချက်ခြင်း
         long pending = allBookings.stream().filter(b -> b.getStatus() == BookingStatus.PENDING).count();

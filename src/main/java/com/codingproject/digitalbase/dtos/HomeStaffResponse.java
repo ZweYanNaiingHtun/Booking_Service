@@ -7,6 +7,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class HomeStaffResponse {
+    private Long userId;
     private Long staffProfileId;
     private String fullName;
     private String profilePicture;
