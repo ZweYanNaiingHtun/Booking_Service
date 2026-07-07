@@ -6,13 +6,13 @@ import java.util.List;
 
 public interface DashboardService {
 
-    List<TopServiceResponse> getTopServicesTrending();
+    List<TopServiceResponse> getTopServicesTrending(Integer month, Integer year);
 
-    List<StaffPerformance> getStaffPerformanceRanking();
+    List<StaffPerformance> getStaffPerformanceRanking(Integer month, Integer year);
 
     List<TodayBookingResponse> getTodayBookingsFeed();
 
-    DashboardStatsResponse getDashboardStats();
+    DashboardStatsResponse getDashboardStats(Integer month, Integer year);
 
     List<ChartDataPoint> getChartData(String period);
 

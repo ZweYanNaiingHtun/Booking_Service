@@ -17,30 +17,32 @@ public class DashboardController {
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/stats")
-    public ResponseEntity<DashboardStatsResponse> getDashboardStats() {
-        return ResponseEntity.ok(this.dashboardService.getDashboardStats());
+    public ResponseEntity<DashboardStatsResponse> getDashboardStats(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(this.dashboardService.getDashboardStats(month, year));
     }
 
-    // 🌟 ၂။ Chart Data သီးသန့် (Weekly သို့မဟုတ် Monthly Toggle အတွက်)
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/chart")
-    public ResponseEntity<List<ChartDataPoint>> getChartData(@RequestParam(defaultValue = "weekly") String period) {
+    public ResponseEntity<List<ChartDataPoint>> getDashboardChartData(@RequestParam(defaultValue = "weekly") String period) {
         return ResponseEntity.ok(this.dashboardService.getChartData(period));
     }
 
-    // 🌟 ၂။ Top Services + Staff Performance Table (Monthly စာရင်းများအတွက်)
-    // 🌟 ၁။ ဝန်ဆောင်မှု Trending (Pie Chart) အတွက် သီးသန့် Endpoint
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/service-trending")
-    public ResponseEntity<List<TopServiceResponse>> getServiceTrending() {
-        return ResponseEntity.ok(this.dashboardService.getTopServicesTrending());
+    public ResponseEntity<List<TopServiceResponse>> getServiceTrending(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(this.dashboardService.getTopServicesTrending(month, year));
     }
 
-    // 🌟 ၂။ ဝန်ထမ်းစွမ်းဆောင်ရည် (Staff Management Table) အတွက် သီးသန့် Endpoint
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/staff-performance")
-    public ResponseEntity<List<StaffPerformance>> getStaffPerformance() {
-        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking());
+    public ResponseEntity<List<StaffPerformance>> getStaffPerformance(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking(month, year));
     }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -49,7 +51,6 @@ public class DashboardController {
         return ResponseEntity.ok(this.dashboardService.getStaffPerformanceById(id));
     }
 
-    // 🌟 ၃။ Dashboard အောက်ဆုံးက "Today's Bookings" Real-time Feed အတွက်
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/today-bookings")
     public ResponseEntity<List<TodayBookingResponse>> getTodayBookings() {

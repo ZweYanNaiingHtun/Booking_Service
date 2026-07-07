@@ -4,6 +4,7 @@ import com.codingproject.digitalbase.dtos.MonthlyReportDTO;
 import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.model.Booking;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -51,4 +52,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT b FROM Booking b WHERE b.customer.code = 'CU-WALKIN' ORDER BY b.bookingDate DESC")
     Page<Booking> findWalkInBookings(Pageable pageable);
+
+    @Query("SELECT b FROM Booking b WHERE FUNCTION('MONTH', b.bookingDate) = :month AND FUNCTION('YEAR', b.bookingDate) = :year")
+    List<Booking> findAllByMonthAndYear(@Param("month") int month, @Param("year") int year);
+
+    List<Booking> findByBookingDateBetween(Instant start, Instant end);
 }
