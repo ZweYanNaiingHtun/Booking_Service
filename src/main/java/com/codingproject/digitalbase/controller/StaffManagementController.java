@@ -5,11 +5,11 @@
 
 package com.codingproject.digitalbase.controller;
 
-import com.codingproject.digitalbase.dtos.StaffCreateRequest;
-import com.codingproject.digitalbase.dtos.StaffResponse;
-import com.codingproject.digitalbase.dtos.StaffUpdateRequest;
+import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.service.StaffManagementService;
 import jakarta.validation.Valid;
+
+import java.time.Instant;
 import java.util.List;
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +45,21 @@ public class StaffManagementController {
 //        return ResponseEntity.ok(response);
 //    }
 
+    // 🎯 ၁။ နေ့အလိုက် ဝန်ထမ်းအခြေအနေ (Sidebar) - Instant သုံးထားပါသည်
+    @GetMapping("/daily-status")
+    public ResponseEntity<DailyStaffStatusResponse> getDailyStatus(@RequestParam Instant date) {
+        return ResponseEntity.ok(staffService.getDailyStaffStatus(date));
+    }
+
+    // 🎯 ၂။ Calendar ရက်အလိုက် Events များနှင့် Staff Filter (Start/End Range ကို Instant ဖြင့် ယူပါသည်)
+    @GetMapping("/calendar")
+    public ResponseEntity<List<CalendarMonthResponse>> getCalendarOverview(
+            @RequestParam Instant startDate,
+            @RequestParam Instant endDate,
+            @RequestParam(required = false) Long staffId) {
+        return ResponseEntity.ok(staffService.getCalendarMonthOverview(startDate, endDate, staffId));
+    }
+
     @GetMapping
     public ResponseEntity<List<StaffResponse>> getAllStaffs() {
         return ResponseEntity.ok(this.staffService.getAllStaffs());
@@ -56,6 +71,14 @@ public class StaffManagementController {
             @RequestBody @Valid StaffUpdateRequest request) { // 🌟 @ModelAttribute မှ @RequestBody (JSON) သို့ ပြောင်းလဲခြင်း
         return ResponseEntity.ok(this.staffService.updateStaffUser(id, request));
     }
+
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PostMapping("/assign")
+    public ResponseEntity<String> assignLeave(@Valid @RequestBody StaffLeaveRequest request) {
+        this.staffService.assignStaffLeave(request);
+        return ResponseEntity.ok("Staff leave assigned successfully!");
+    }
+
 
     @PutMapping({"/{id}/status"})
     public ResponseEntity<StaffResponse> toggleStaffStatus(@PathVariable Long id, @RequestParam boolean enable) {

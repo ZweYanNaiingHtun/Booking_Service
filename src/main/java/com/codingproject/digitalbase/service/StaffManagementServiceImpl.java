@@ -1,35 +1,24 @@
 package com.codingproject.digitalbase.service;
 
-import com.codingproject.digitalbase.dtos.StaffCreateRequest;
-import com.codingproject.digitalbase.dtos.StaffResponse;
-import com.codingproject.digitalbase.dtos.StaffUpdateRequest;
+import com.codingproject.digitalbase.dtos.*;
+import com.codingproject.digitalbase.enums.LeaveType;
 import com.codingproject.digitalbase.enums.RoleName;
 import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
-import com.codingproject.digitalbase.model.BusinessService;
-import com.codingproject.digitalbase.model.Role;
-import com.codingproject.digitalbase.model.StaffProfile;
-import com.codingproject.digitalbase.model.User;
-import com.codingproject.digitalbase.repository.BusinessServiceRepository;
-import com.codingproject.digitalbase.repository.RoleRepository;
-import com.codingproject.digitalbase.repository.StaffProfileRepository;
-import com.codingproject.digitalbase.repository.UserRepository;
-import java.io.IOException;
-import java.nio.file.CopyOption;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import com.codingproject.digitalbase.model.*;
+import com.codingproject.digitalbase.repository.*;
+
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
+import java.util.stream.Collectors;
+
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +37,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
     private final BusinessServiceRepository serviceRepository;
     private final EmailService emailService;
     private final StaffProfileRepository staffProfileRepository;
+    private final StaffLeaveRepository staffLeaveRepository;
 
     private String generateUserCode(RoleName roleName) {
         if (roleName == RoleName.SUPER_ADMIN) {
@@ -208,6 +198,113 @@ public class StaffManagementServiceImpl implements StaffManagementService {
             staff.setEnabled(enable);
             return this.mapToStaffResponse((User)this.userRepository.save(staff));
         }
+    }
+
+    @Override
+    @Transactional
+    public void assignStaffLeave(StaffLeaveRequest request) {
+        // ၁။ ဝန်ထမ်း ရှိ/မရှိ စစ်ဆေးခြင်း
+        StaffProfile staffProfile = staffProfileRepository.findById(request.getStaffProfileId())
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found with ID: " + request.getStaffProfileId()));
+
+        // 🌟 ၂။ Handling Single-Day Leave with Instant
+        Instant startDate = request.getStartDate();
+        Instant endDate = (request.getEndDate() != null) ? request.getEndDate() : startDate;
+
+        // ၃။ Validation (စတင်ချိန်သည် ကုန်ဆုံးချိန်ထက် မကျော်လွန်စေရန် စစ်ဆေးခြင်း)
+        if (startDate.isAfter(endDate)) {
+            throw new BadRequestException("Start date cannot be after end date.");
+        }
+
+        // ၄။ Entity ထဲသို့ ထည့်သွင်း၍ DB တွင် သိမ်းဆည်းခြင်း
+        StaffLeave staffLeave = StaffLeave.builder()
+                .staffProfile(staffProfile)
+                .leaveType(request.getLeaveType())
+                .startDate(startDate)
+                .endDate(endDate)
+                .note(request.getNote())
+                .build();
+
+        staffLeaveRepository.save(staffLeave);
+    }
+
+    @Override
+    public DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate) {
+        List<StaffProfile> allStaff = staffProfileRepository.findAll();
+
+        // Target နေ့တွင် ငြိနေသော ခွင့်များကို စစ်ထုတ်ခြင်း
+        List<StaffLeave> activeLeaves = staffLeaveRepository.findAll().stream()
+                .filter(leave -> !targetDate.isBefore(leave.getStartDate()) &&
+                        (leave.getEndDate() == null || !targetDate.isAfter(leave.getEndDate())))
+                .collect(Collectors.toList());
+
+        List<DailyStaffStatusResponse.StaffStatusDTO> activeStaff = new ArrayList<>();
+        List<DailyStaffStatusResponse.StaffStatusDTO> dayOffStaff = new ArrayList<>();
+        List<DailyStaffStatusResponse.StaffStatusDTO> leaveStaff = new ArrayList<>();
+
+        for (StaffProfile staff : allStaff) {
+            StaffLeave staffLeave = activeLeaves.stream()
+                    .filter(l -> l.getStaffProfile().getId().equals(staff.getId()))
+                    .findFirst().orElse(null);
+
+            DailyStaffStatusResponse.StaffStatusDTO dto = DailyStaffStatusResponse.StaffStatusDTO.builder()
+                    .id(staff.getId())
+                    .name(staff.getUser().getFullName())
+                    .role(staff.getUser().getRoles().toString())
+                    .profileImage(staff.getUser().getProfilePicture())
+                    .build();
+
+            if (staffLeave == null) {
+                activeStaff.add(dto);
+            } else if (LeaveType.DAY_OFF == staffLeave.getLeaveType()) { // 🎯 Enum ဖြင့် တိုက်ရိုက် စစ်ဆေးခြင်း
+                dayOffStaff.add(dto);
+            } else {
+                leaveStaff.add(dto);
+            }
+        }
+
+        return DailyStaffStatusResponse.builder()
+                .activeStaff(activeStaff)
+                .dayOffStaff(dayOffStaff)
+                .leaveStaff(leaveStaff)
+                .build();
+    }
+
+    // 🎯 ပြက္ခဒိန်အတွက် Range အလိုက် Loop ပတ်ပြီး Data ထုတ်ပေးခြင်း
+    @Override
+    public List<CalendarMonthResponse> getCalendarMonthOverview(Instant startDate, Instant endDate, Long staffId) {
+        List<CalendarMonthResponse> monthlyData = new ArrayList<>();
+
+        Instant currentDay = startDate;
+        // Start Date မှ End Date အထိ တစ်ရက်ချင်းစီကို Loop ပတ်ပြီး စစ်ဆေးသည်
+        while (!currentDay.isAfter(endDate)) {
+            final Instant finalCurrentDay = currentDay;
+
+            List<StaffLeave> dayLeaves = staffLeaveRepository.findAll().stream()
+                    .filter(leave -> !finalCurrentDay.isBefore(leave.getStartDate()) &&
+                            (leave.getEndDate() == null || !finalCurrentDay.isAfter(leave.getEndDate())))
+                    .filter(leave -> staffId == null || leave.getStaffProfile().getId().equals(staffId))
+                    .collect(Collectors.toList());
+
+            List<CalendarMonthResponse.StaffLeaveEvent> events = dayLeaves.stream().map(leave ->
+                    CalendarMonthResponse.StaffLeaveEvent.builder()
+                            .staffId(leave.getStaffProfile().getId())
+                            .staffName(leave.getStaffProfile().getUser().getFullName())
+                            .role(leave.getStaffProfile().getUser().getRoles().toString())
+                            .leaveType(leave.getLeaveType()) // 🎯 Enum Type တန်းပေးလိုက်ပါသည်
+                            .note(leave.getNote())
+                            .build()
+            ).collect(Collectors.toList());
+
+            monthlyData.add(CalendarMonthResponse.builder()
+                    .date(finalCurrentDay)
+                    .events(events)
+                    .build());
+
+            // နောက်တစ်ရက်သို့ ကူးပြောင်းခြင်း
+            currentDay = currentDay.plus(1, ChronoUnit.DAYS);
+        }
+        return monthlyData;
     }
 
     @Override

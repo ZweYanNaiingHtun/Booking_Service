@@ -30,11 +30,36 @@ public class DashboardController {
     }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/report-chart")
+    public ResponseEntity<ReportSummaryResponse> getReportChart(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(defaultValue = "weekly") String period) { // 🌟 weekly သို့မဟုတ် monthly လက်ခံရန်
+
+        ReportSummaryResponse data = this.dashboardService.getReportChartData(year, month, period);
+        return ResponseEntity.ok(data);
+    }
+
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/service-trending")
     public ResponseEntity<List<TopServiceResponse>> getServiceTrending(
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) Integer year) {
         return ResponseEntity.ok(this.dashboardService.getTopServicesTrending(month, year));
+    }
+
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/daily-overview")
+    public ResponseEntity<PaginatedDailyOverviewResponse> getDailyOverview(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(defaultValue = "0") int page,   // 📄 Default: ပထမဆုံး စာမျက်နှာ (Page 0)
+            @RequestParam(defaultValue = "10") int size) { // 📏 Default: တစ်မျက်နှာလျှင် ၁၀ ရက်စာ ပြသမည်
+
+        // 🌟 Service ထဲက ပတ်လမ်းအသစ်ကို လှမ်းခေါ်ပြီး Response ပြန်ပေးခြင်း
+        PaginatedDailyOverviewResponse response = this.dashboardService.getMonthlyDailyOverview(year, month, page, size);
+
+        return ResponseEntity.ok(response);
     }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")

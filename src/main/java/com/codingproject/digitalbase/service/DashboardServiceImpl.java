@@ -3,8 +3,11 @@ package com.codingproject.digitalbase.service;
 import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.model.Booking;
+import com.codingproject.digitalbase.model.BusinessService;
+import com.codingproject.digitalbase.model.StaffLeave;
 import com.codingproject.digitalbase.repository.AnalyticsRepository;
 import com.codingproject.digitalbase.repository.BookingRepository;
+import com.codingproject.digitalbase.repository.StaffLeaveRepository;
 import com.codingproject.digitalbase.repository.StaffProfileRepository;
 
 import java.time.*;
@@ -24,6 +27,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final BookingRepository bookingRepository;
     private final StaffProfileRepository staffProfileRepository;
     private final AnalyticsRepository analyticsRepository;
+    private final StaffLeaveRepository staffLeaveRepository;
 
     private final ZoneId yangonZone = ZoneId.of("Asia/Yangon");
 
@@ -137,6 +141,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .sorted((s1, s2) -> Double.compare(s2.getRatingAverage(), s1.getRatingAverage()))
                 .toList();
     }
+
     @Override
     public DashboardStatsResponse getDashboardStats(Integer month, Integer year) {
         LocalDate targetDate = resolveTargetDate(month, year);
@@ -144,20 +149,18 @@ public class DashboardServiceImpl implements DashboardService {
 
         int todayActiveStaff = this.staffProfileRepository.countByIsAvailableTrue();
 
-        // ==================== 💾 OPTIMIZED DB FETCH (ဆရာကြီးအသစ်ထည့်ထားသော Query ကိုသုံးခြင်း) ====================
-        // ၁။ ရွေးချယ်ထားသော လအတွက် ဒေတာများကို Database Level မှာတင် ကွက်တိဆွဲယူခြင်း
+        // ==================== 💾 OPTIMIZED DB FETCH ====================
         List<Booking> currentMonthBookings = this.bookingRepository.findAllByMonthAndYear(
                 targetDate.getMonthValue(),
                 targetDate.getYear()
         );
 
-        // ၂။ ၎င်း၏ ပြီးခဲ့သည့်လအတွက် ဒေတာများကို Database Level မှာတင် ကွက်တိဆွဲယူခြင်း
         List<Booking> lastMonthBookings = this.bookingRepository.findAllByMonthAndYear(
                 lastMonthDate.getMonthValue(),
                 lastMonthDate.getYear()
         );
 
-        // ==================== 📊 Target Month Stats တွက်ချက်ခြင်း ====================
+        // ==================== 📊 Target Month Stats ====================
         long currentBookingsCount = currentMonthBookings.stream()
                 .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
                 .count();
@@ -173,7 +176,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .distinct()
                 .count();
 
-        // ==================== 📉 Last Month Stats တွက်ချက်ခြင်း ====================
+        // ==================== 📉 Last Month Stats ====================
         long lastBookingsCount = lastMonthBookings.stream()
                 .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
                 .count();
@@ -204,7 +207,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .totalCustomers(currentCustomersCount)
                 .customersGrowthPercentage(customersGrowth)
                 .build();
-    };
+    }
 
     @Override
     public List<ChartDataPoint> getChartData(String period) {
@@ -212,23 +215,20 @@ public class DashboardServiceImpl implements DashboardService {
         List<ChartDataPoint> chartData = new ArrayList<>();
 
         if ("monthly".equalsIgnoreCase(period)) {
-            // ==================== 📅 CURRENT MONTH CHART LOGIC ====================
-            LocalDateTime startOfMonth = today.withDayOfMonth(1).atStartOfDay();
-            LocalDateTime endOfMonth = today.with(TemporalAdjusters.lastDayOfMonth()).atTime(LocalTime.MAX);
+            int currentYear = today.getYear();
 
-            // 🌟 LocalDateTime မှ Instant သို့ yangonZone အသုံးပြု၍ ပြောင်းလဲခြင်း
-            Instant startInstant = startOfMonth.atZone(yangonZone).toInstant();
-            Instant endInstant = endOfMonth.atZone(yangonZone).toInstant();
+            LocalDateTime startOfYear = LocalDate.of(currentYear, 1, 1).atStartOfDay();
+            LocalDateTime endOfYear = LocalDate.of(currentYear, 12, 31).atTime(LocalTime.MAX);
 
-            // Repository သို့ Instant Type ဖြင့် ပို့ပေးလိုက်ပါသည်
+            Instant startInstant = startOfYear.atZone(yangonZone).toInstant();
+            Instant endInstant = endOfYear.atZone(yangonZone).toInstant();
+
             List<Booking> bookings = this.bookingRepository.findByBookingDateBetween(startInstant, endInstant);
-            int lengthOfMonth = today.lengthOfMonth();
 
-            // 0 ဖြင့် Initialize လုပ်ခြင်း
-            for (int i = 1; i <= lengthOfMonth; i++) {
-                String dayLabel = String.format("%02d", i);
+            String[] months = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+            for (String monthLabel : months) {
                 chartData.add(ChartDataPoint.builder()
-                        .label(dayLabel)
+                        .label(monthLabel)
                         .bookingCount(0)
                         .walkInCount(0)
                         .cancelCount(0)
@@ -236,31 +236,25 @@ public class DashboardServiceImpl implements DashboardService {
                         .build());
             }
 
-            // ဒေတာများ ဖြည့်သွင်းခြင်း
             for (Booking b : bookings) {
                 if (b.getBookingDate() == null) continue;
-                int dayOfMonth = b.getBookingDate().atZone(yangonZone).getDayOfMonth();
-                ChartDataPoint dataPoint = chartData.get(dayOfMonth - 1);
-
+                int monthValue = b.getBookingDate().atZone(yangonZone).getMonthValue();
+                ChartDataPoint dataPoint = chartData.get(monthValue - 1);
                 populateCounts(b, dataPoint);
             }
 
         } else {
-            // ==================== 📅 CURRENT WEEK CHART LOGIC (DEFAULT) ====================
             LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
             LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
             LocalDateTime startOfWeek = monday.atStartOfDay();
             LocalDateTime endOfWeek = sunday.atTime(LocalTime.MAX);
 
-            // 🌟 LocalDateTime မှ Instant သို့ yangonZone အသုံးပြု၍ ပြောင်းလဲခြင်း
             Instant startInstant = startOfWeek.atZone(yangonZone).toInstant();
             Instant endInstant = endOfWeek.atZone(yangonZone).toInstant();
 
-            // Repository သို့ Instant Type ဖြင့် ပို့ပေးလိုက်ပါသည်
             List<Booking> bookings = this.bookingRepository.findByBookingDateBetween(startInstant, endInstant);
 
-            // Mon မှ Sun အထိ Map တည်ဆောက်ခြင်း
             Map<DayOfWeek, ChartDataPoint> weekMap = new LinkedHashMap<>();
             for (DayOfWeek day : DayOfWeek.values()) {
                 String shortName = day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
@@ -273,12 +267,10 @@ public class DashboardServiceImpl implements DashboardService {
                         .build());
             }
 
-            // ဒေတာများ ဖြည့်သွင်းခြင်း
             for (Booking b : bookings) {
                 if (b.getBookingDate() == null) continue;
                 DayOfWeek dayOfWeek = b.getBookingDate().atZone(yangonZone).getDayOfWeek();
                 ChartDataPoint dataPoint = weekMap.get(dayOfWeek);
-
                 populateCounts(b, dataPoint);
             }
 
@@ -288,7 +280,6 @@ public class DashboardServiceImpl implements DashboardService {
         return chartData;
     }
 
-    // 🛠️ Booking အမျိုးအစားအလိုက် တိုင်ခွဲပေးသည့် Helper Method
     private void populateCounts(Booking b, ChartDataPoint dataPoint) {
         if (b.getStatus() == BookingStatus.CANCELLED) {
             dataPoint.setCancelCount(dataPoint.getCancelCount() + 1);
@@ -300,7 +291,125 @@ public class DashboardServiceImpl implements DashboardService {
                 dataPoint.setBookingCount(dataPoint.getBookingCount() + 1);
             }
         }
-        dataPoint.setTotalBooking(dataPoint.getBookingCount() + dataPoint.getWalkInCount() + dataPoint.getCancelCount());
+        dataPoint.setTotalBooking(dataPoint.getBookingCount() + dataPoint.getWalkInCount());
+    }
+
+    @Override
+    public ReportSummaryResponse getReportChartData(Integer year, Integer month, String period) {
+        List<Booking> bookings;
+        Instant startInstant;
+        Instant endInstant;
+
+        int selectedYear = (year != null) ? year : LocalDate.now(yangonZone).getYear();
+        int selectedMonth = (month != null) ? month : LocalDate.now(yangonZone).getMonthValue();
+
+        if ("monthly".equalsIgnoreCase(period)) {
+            LocalDateTime startOfYear = LocalDate.of(selectedYear, 1, 1).atStartOfDay();
+            LocalDateTime endOfYear = LocalDate.of(selectedYear, 12, 31).atTime(LocalTime.MAX);
+            startInstant = startOfYear.atZone(yangonZone).toInstant();
+            endInstant = endOfYear.atZone(yangonZone).toInstant();
+        } else {
+            LocalDate startDay = LocalDate.of(selectedYear, selectedMonth, 1);
+            LocalDateTime startOfMonth = startDay.atStartOfDay();
+            LocalDateTime endOfMonth = startDay.with(TemporalAdjusters.lastDayOfMonth()).atTime(LocalTime.MAX);
+            startInstant = startOfMonth.atZone(yangonZone).toInstant();
+            endInstant = endOfMonth.atZone(yangonZone).toInstant();
+        }
+
+        bookings = this.bookingRepository.findByBookingDateBetween(startInstant, endInstant);
+
+        Map<BusinessService, Long> serviceCountMap = bookings.stream()
+                .filter(b -> b.getStatus() == BookingStatus.COMPLETED && b.getBusinessService() != null)
+                .collect(Collectors.groupingBy(Booking::getBusinessService, Collectors.counting()));
+
+        BusinessService topTrendingService = serviceCountMap.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+
+        String topServiceName = (topTrendingService != null) ? topTrendingService.getName() : "No Service";
+
+        Map<String, ReportChartDataPoint> dataMap = new LinkedHashMap<>();
+        if ("monthly".equalsIgnoreCase(period)) {
+            String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+            for (String m : months) {
+                dataMap.put(m, createEmptyDataPoint(m, topServiceName));
+            }
+        } else {
+            for (DayOfWeek day : DayOfWeek.values()) {
+                String shortName = day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+                dataMap.put(shortName, createEmptyDataPoint(shortName, topServiceName));
+            }
+        }
+
+        for (Booking b : bookings) {
+            if (b.getBookingDate() == null) continue;
+
+            String key;
+            if ("monthly".equalsIgnoreCase(period)) {
+                int monthValue = b.getBookingDate().atZone(yangonZone).getMonthValue();
+                String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                key = months[monthValue - 1];
+            } else {
+                DayOfWeek dayOfWeek = b.getBookingDate().atZone(yangonZone).getDayOfWeek();
+                key = dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+            }
+
+            ReportChartDataPoint dataPoint = dataMap.get(key);
+            if (dataPoint == null) continue;
+
+            if (b.getStatus() == BookingStatus.CANCELLED) {
+                dataPoint.setCancelCount(dataPoint.getCancelCount() + 1);
+            } else {
+                boolean isWalkIn = b.getCustomer() != null && "CU-WALKIN".equalsIgnoreCase(b.getCustomer().getCode());
+                if (isWalkIn) {
+                    dataPoint.setWalkInCount(dataPoint.getWalkInCount() + 1);
+                } else {
+                    dataPoint.setBookingCount(dataPoint.getBookingCount() + 1);
+                }
+            }
+            dataPoint.setTotalBooking(dataPoint.getBookingCount() + dataPoint.getWalkInCount() + dataPoint.getCancelCount());
+
+            if (b.getStatus() == BookingStatus.COMPLETED) {
+                java.math.BigDecimal paymentBigDecimal = (b.getPayment() != null) ? b.getPayment().getAmount() : java.math.BigDecimal.ZERO;
+                double paymentAmount = paymentBigDecimal.doubleValue();
+
+                RevenueBlock revBlock = dataPoint.getRevenueBlock();
+                revBlock.setTotalRevenue(revBlock.getTotalRevenue() + paymentAmount);
+
+                if (topTrendingService != null && topTrendingService.getId().equals(b.getBusinessService().getId())) {
+                    revBlock.setTopServiceRevenue(revBlock.getTopServiceRevenue() + paymentAmount);
+                }
+            }
+        }
+
+        double grandTotalRevenue = dataMap.values().stream()
+                .mapToDouble(dp -> dp.getRevenueBlock().getTotalRevenue())
+                .sum();
+
+        double grandTopServiceRevenue = dataMap.values().stream()
+                .mapToDouble(dp -> dp.getRevenueBlock().getTopServiceRevenue())
+                .sum();
+
+        return ReportSummaryResponse.builder()
+                .grandRevenue(RevenueBlock.builder()
+                        .totalRevenue(grandTotalRevenue)
+                        .topServiceRevenue(grandTopServiceRevenue)
+                        .build())
+                .chartData(new ArrayList<>(dataMap.values()))
+                .build();
+    }
+
+    private ReportChartDataPoint createEmptyDataPoint(String label, String topServiceName) {
+        return ReportChartDataPoint.builder()
+                .label(label)
+                .bookingCount(0)
+                .walkInCount(0)
+                .cancelCount(0)
+                .totalBooking(0)
+                .revenueBlock(RevenueBlock.builder().totalRevenue(0.0).topServiceRevenue(0.0).build())
+                .topServiceName(topServiceName)
+                .build();
     }
 
     @Override
@@ -334,6 +443,100 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
+    public PaginatedDailyOverviewResponse getMonthlyDailyOverview(Integer year, Integer month, int page, int size) {
+        int selectedYear = (year != null) ? year : LocalDate.now(yangonZone).getYear();
+        int selectedMonth = (month != null) ? month : LocalDate.now(yangonZone).getMonthValue();
+
+        LocalDate startDayOfMonth = LocalDate.of(selectedYear, selectedMonth, 1);
+        LocalDate endDayOfMonth = startDayOfMonth.with(TemporalAdjusters.lastDayOfMonth());
+
+        LocalDateTime startOfMonth = startDayOfMonth.atStartOfDay();
+        LocalDateTime endOfMonth = endDayOfMonth.atTime(LocalTime.MAX);
+
+        Instant startInstant = startOfMonth.atZone(yangonZone).toInstant();
+        Instant endInstant = endOfMonth.atZone(yangonZone).toInstant();
+
+        List<Booking> monthBookings = this.bookingRepository.findByBookingDateBetween(startInstant, endInstant);
+
+        Map<Integer, List<Booking>> bookingsByDayMap = monthBookings.stream()
+                .filter(b -> b.getBookingDate() != null)
+                .collect(Collectors.groupingBy(b -> b.getBookingDate().atZone(yangonZone).getDayOfMonth()));
+
+        long totalStaffCount = this.staffProfileRepository.count();
+// 🎯 LocalDate အစား အပေါ်မှာ တွက်ထားပြီးသား Instant ဒေတာများကို ပြောင်းလဲပေးလိုက်ပါတယ်
+        List<StaffLeave> monthlyLeaves = this.staffLeaveRepository.findLeavesInPeriod(startInstant, endInstant);
+
+        int totalDaysInMonth = startDayOfMonth.lengthOfMonth();
+        int totalPages = (int) Math.ceil((double) totalDaysInMonth / size);
+
+        int startDay = (page * size) + 1;
+        int endDay = Math.min(startDay + size - 1, totalDaysInMonth);
+
+        List<DailyOverviewDataPoint> pagedData = new ArrayList<>();
+
+        for (int d = startDay; d <= endDay; d++) {
+            LocalDate currentDate = LocalDate.of(selectedYear, selectedMonth, d);
+            List<Booking> dayBookings = bookingsByDayMap.getOrDefault(d, new ArrayList<>());
+
+            long totalBookings = dayBookings.size();
+            long cancelledBookings = dayBookings.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.CANCELLED)
+                    .count();
+            long walkInCustomers = dayBookings.stream()
+                    .filter(b -> b.getStatus() != BookingStatus.CANCELLED && b.getCustomer() != null && "CU-WALKIN".equalsIgnoreCase(b.getCustomer().getCode()))
+                    .count();
+
+            // ==================== 🌟 ACTIVE STAFF DETERMINATION LOGIC (UPDATED WITH INSTANT FIX) ====================
+            long staffOnLeaveCount = monthlyLeaves.stream()
+                    .filter(leave -> {
+                        LocalDate leaveStart = leave.getStartDate().atZone(yangonZone).toLocalDate();
+                        LocalDate leaveEnd = leave.getEndDate().atZone(yangonZone).toLocalDate();
+                        return !currentDate.isBefore(leaveStart) && !currentDate.isAfter(leaveEnd);
+                    })
+                    .map(leave -> leave.getStaffProfile().getId())
+                    .distinct()
+                    .count();
+
+            long activeStaff = totalStaffCount - staffOnLeaveCount;
+            if (activeStaff < 0) activeStaff = 0;
+            // ===================================================================================================
+
+            double totalRevenue = dayBookings.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.COMPLETED && b.getPayment() != null)
+                    .mapToDouble(b -> b.getPayment().getAmount().doubleValue())
+                    .sum();
+
+            String topService = dayBookings.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.COMPLETED && b.getBusinessService() != null)
+                    .collect(Collectors.groupingBy(b -> b.getBusinessService().getName(), Collectors.counting()))
+                    .entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse("-");
+
+            String dateLabel = d + "." + selectedMonth + "." + selectedYear;
+
+            pagedData.add(DailyOverviewDataPoint.builder()
+                    .date(dateLabel)
+                    .totalBookings(totalBookings)
+                    .cancelledBookings(cancelledBookings)
+                    .walkInCustomers(walkInCustomers)
+                    .activeStaff(activeStaff)
+                    .totalRevenue(totalRevenue)
+                    .topService(topService)
+                    .build());
+        }
+
+        return PaginatedDailyOverviewResponse.builder()
+                .content(pagedData)
+                .pageNumber(page)
+                .pageSize(size)
+                .totalPages(totalPages)
+                .totalElements(totalDaysInMonth)
+                .build();
+    }
+
+    @Override
     public StaffPerformance getStaffPerformanceById(Long staffId) {
         LocalDate today = LocalDate.now(yangonZone);
         return this.getStaffPerformanceRanking(today.getMonthValue(), today.getYear()).stream()
@@ -349,7 +552,6 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private boolean isWalkInBooking(Booking b) {
-        // Booking ထဲမှာ Customer ရှိရမယ်၊ ပြီးတော့ အဲဒီ Customer ရဲ့ Code က "CU-WALKIN" ဖြစ်ရမယ်
         return b.getCustomer() != null && "CU-WALKIN".equals(b.getCustomer().getCode());
     }
 }

@@ -5,9 +5,9 @@
 
 package com.codingproject.digitalbase.service;
 
-import com.codingproject.digitalbase.dtos.StaffCreateRequest;
-import com.codingproject.digitalbase.dtos.StaffResponse;
-import com.codingproject.digitalbase.dtos.StaffUpdateRequest;
+import com.codingproject.digitalbase.dtos.*;
+
+import java.time.Instant;
 import java.util.List;
 
 public interface StaffManagementService {
@@ -17,9 +17,16 @@ public interface StaffManagementService {
 
     List<StaffResponse> getAllStaffs();
 
+    void assignStaffLeave(StaffLeaveRequest request);
+
     StaffResponse updateStaffUser(Long staffId, StaffUpdateRequest request);
 
     StaffResponse toggleStaffStatus(Long staffId, boolean enable);
+
+    DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate);
+
+    // 🎯 ပြက္ခဒိန်အတွက် Range အလိုက် Loop ပတ်ပြီး Data ထုတ်ပေးခြင်း
+    List<CalendarMonthResponse> getCalendarMonthOverview(Instant startDate, Instant endDate, Long staffId);
 
     StaffResponse toggleStaffAvailability(Long staffProfileId, boolean available);
 }

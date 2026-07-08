@@ -55,4 +55,8 @@ public class StaffProfile {
 
     @OneToMany(mappedBy = "staffProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Review> reviews = new ArrayList<>();
+
+    // 🌟 StaffProfile.java ထဲတွင် ဤ Line လေး ဖြည့်စွက်ပေးပါ ဆရာကြီး
+    @OneToMany(mappedBy = "staffProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<StaffLeave> leaves = new ArrayList<>();
 }
