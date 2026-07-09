@@ -21,6 +21,8 @@ public interface StaffManagementService {
 
     StaffResponse updateStaffUser(Long staffId, StaffUpdateRequest request);
 
+    List<StaffLeaveDetailResponse> getStaffLeavesBySelectedDate(Instant targetDate);
+
     StaffResponse toggleStaffStatus(Long staffId, boolean enable);
 
     DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate);
@@ -29,4 +31,5 @@ public interface StaffManagementService {
     List<CalendarMonthResponse> getCalendarMonthOverview(Instant startDate, Instant endDate, Long staffId);
 
     StaffResponse toggleStaffAvailability(Long staffProfileId, boolean available);
+
 }

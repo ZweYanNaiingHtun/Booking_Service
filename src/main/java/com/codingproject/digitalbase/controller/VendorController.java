@@ -49,7 +49,7 @@ public class VendorController {
             value = {"/{id}"},
             consumes = {"multipart/form-data"}
     )
-    @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<VendorResponse> updateVendor(@PathVariable Long id, @ModelAttribute VendorRequest request) {
         return ResponseEntity.ok(this.vendorService.updateVendorDetails(id, request));
     }

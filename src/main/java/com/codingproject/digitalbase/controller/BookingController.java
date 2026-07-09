@@ -45,7 +45,7 @@ public class BookingController {
 
     @GetMapping({"/my-history"})
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<Page<BookingResponse>> getMyBookingHistory(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<Page<BookingHistoryResponse>> getMyBookingHistory(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(this.bookingService.getMyBookingHistory(page, size));
     }
 
@@ -89,13 +89,6 @@ public class BookingController {
     @GetMapping("/home-staffs")
     public ResponseEntity<List<HomeStaffResponse>> getStaffListForHomePage() {
         return ResponseEntity.ok(bookingService.getStaffListForHomePage());
-    }
-
-    @GetMapping({"/available-staff"})
-    public ResponseEntity<List<AvailableStaffResponse>> getAvailableStaff(@RequestParam("date") String dateStr) {
-        Instant bookingDate = Instant.parse(dateStr);
-        List<AvailableStaffResponse> availableStaff = this.bookingService.getAvailableStaffForDateTime(bookingDate);
-        return ResponseEntity.ok(availableStaff);
     }
 
     @PutMapping({"/{id}/accept"})

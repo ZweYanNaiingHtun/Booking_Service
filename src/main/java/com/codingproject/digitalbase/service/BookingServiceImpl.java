@@ -187,7 +187,7 @@ public class BookingServiceImpl implements BookingService {
         Integer duration = service.getDurationInMinutes();
         Instant customerBookingInstant = request.getBookingDate();
 
-        // 🌟 ၁။ Rigid Slot နှင့် ဆိုင်ဖွင့်/ပိတ်ချိန် စစ်ဆေးရန်အတွက်သာ ZonedDateTime ကို သုံးခြင်း
+        // ၁။ Rigid Slot နှင့် ဆိုင်ဖွင့်/ပိတ်ချိန် စစ်ဆေးရန်အတွက်သာ ZonedDateTime ကို သုံးခြင်း
         ZoneId zoneId = ZoneId.of("Asia/Yangon");
         ZonedDateTime zonedDateTime = customerBookingInstant.atZone(zoneId);
         LocalTime customerStartTime = zonedDateTime.toLocalTime();
@@ -230,7 +230,7 @@ public class BookingServiceImpl implements BookingService {
         }
         // =========================================================================
 
-        // 🌟 ၂။ Duration နှင့် Instant ကိုသုံး၍ ဝန်ထမ်းပြင်ဆင်ချိန် Bounds များကို တွက်ချက်ခြင်း
+        // ၂။ Duration နှင့် Instant ကိုသုံး၍ ဝန်ထမ်းပြင်ဆင်ချိန် Bounds များကို တွက်ချက်ခြင်း
         int bufferMinutes = 10;
         Instant staffStartTime = customerBookingInstant.minus(Duration.ofMinutes(bufferMinutes));
         Instant staffEndTime = customerBookingInstant.plus(Duration.ofMinutes(duration + bufferMinutes));
@@ -239,7 +239,7 @@ public class BookingServiceImpl implements BookingService {
 
         List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(customerBookingInstant, staffStartTime, staffEndTime, bufferMinutes);
 
-        // 🌟 ၃။ ဆိုင် Capacity စစ်ဆေးခြင်း
+        // ၃။ ဆိုင် Capacity စစ်ဆေးခြင်း
         long confirmedBusyCount = activeStaffProfiles.stream()
                 .filter(sp -> staffAssignmentRepository.isStaffBusy(sp.getUser().getId(), staffStartTime, staffEndTime))
                 .count();
@@ -255,9 +255,12 @@ public class BookingServiceImpl implements BookingService {
             requestedStaffProfile = staffProfileRepository.findByUserId(request.getRequestedStaffId())
                     .orElseThrow(() -> new ResourceNotFoundException("Requested staff profile not found"));
 
-            // ❌ [REMOVED] ကျွမ်းကျင်မှုစစ်ဆေးသည့် ကုဒ်အပိုင်းအစကို ဖယ်ရှားလိုက်ပါပြီဗျာ ✨
+            // 🎯 🌟 [ADDED] အဓိကဖြည့်စွက်ချက်: ၎င်းဝန်ထမ်းသည် တောင်းဆိုထားသော နေ့ရက်တွင် ခွင့် / Day Off ယူထားခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
+            if (isStaffOnLeave(requestedStaffProfile, customerBookingInstant)) {
+                throw new BadRequestException("Booking Denied! The requested staff member is on leave or day-off on this specific date.");
+            }
 
-            // 🌟 ၄။ တောင်းဆိုထားသော ဝန်ထမ်း အလုပ်အား/မအား Instant ဖြင့် တိုက်ရိုက် စစ်ဆေးခြင်း
+            // ၄။ တောင်းဆိုထားသော ဝန်ထမ်း အလုပ်အား/မအား Instant ဖြင့် တိုက်ရိုက် စစ်ဆေးခြင်း
             boolean isBusy = staffAssignmentRepository.isStaffBusy(requestedStaffProfile.getUser().getId(), staffStartTime, staffEndTime);
             if (isBusy) {
                 throw new BadRequestException("The requested staff is busy or in preparation/cleanup time for another booking. Please choose another time slot!");
@@ -272,7 +275,7 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // Booking အား ဆောက်ရွက်ခြင်း အပိုင်း
+        // Booking အား ဆောင်ရွက်ခြင်း အပိုင်း
         Booking booking = new Booking();
         booking.setCustomer(currentUser);
         booking.setCreatedBy(currentUser);
@@ -401,11 +404,52 @@ public class BookingServiceImpl implements BookingService {
             throw e;
         }
     }
-    public Page<BookingResponse> getMyBookingHistory(int page, int size) {
+
+    public Page<BookingHistoryResponse> getMyBookingHistory(int page, int size) {
         User currentUser = this.getCurrentAuthenticatedUser();
+
+        // CreatedAt အရ နောက်ဆုံးတင်ထားသော Booking ကို အပေါ်ဆုံးကပြရန် Descending သုံးထားပါသည်
         Pageable pageable = PageRequest.of(page, size, Sort.by(new String[]{"createdAt"}).descending());
+
         Page<Booking> bookingPage = this.bookingRepository.findByCustomerId(currentUser.getId(), pageable);
-        return bookingPage.map(this::mapToResponse);
+
+        return bookingPage.map(booking -> {
+
+            // 🎯 ၁။ Fix: getService() အစား getBusinessService() ကို သုံးထားပါသည်
+            String mainServiceName = (booking.getBusinessService() != null) ? booking.getBusinessService().getName() : "Nail Service";
+
+            // 💡 မှတ်ချက် - BusinessService ထဲတွင် duration field ရှိပါက ယူရန် (မရှိပါက default 50 ဟု UI အတိုင်း ထည့်ထားနိုင်ပါသည်)
+            int duration = booking.getBusinessService().getDurationInMinutes();
+
+            // 🎯 ၂။ Fix: getStaffProfile() အစား ဆရာကြီးရဲ့ မူရင်း getAssignedStaff() ကို ပြောင်းလဲထားပါသည်
+            String artistName = "Assigning...";
+            if (booking.getRequestedStaff() != null && booking.getRequestedStaff().getUser() != null) {
+                artistName = booking.getRequestedStaff().getUser().getFullName();
+            }
+
+            // 🎯 ၃။ Fix: UI ထဲက "BK-12345" ပုံစံရရန် booking.getId() ကို သုံးထားပါသည်
+            String bookingCode = "BK-" + booking.getId();
+
+            // 🎯 ၄။ Fix: စျေးနှုန်းကို getPayment() သို့မဟုတ် BusinessService Price မှ ယူခြင်း
+            BigDecimal price = BigDecimal.ZERO;
+            if (booking.getPayment() != null && booking.getPayment().getAmount() != null) {
+                price = booking.getPayment().getAmount();
+            } else if (booking.getBusinessService() != null && booking.getBusinessService().getPrice() != null) {
+                price = booking.getBusinessService().getPrice();
+            }
+
+            return BookingHistoryResponse.builder()
+                    .id(booking.getId())
+                    .bookingCode(bookingCode)
+                    .serviceName(mainServiceName)
+                    .totalDuration(duration)
+                    .appointmentTime(booking.getBookingDate()) // 🎯 Fix: getAppointmentTime() အစား getBookingDate() (Instant) ကို သုံးပါသည်
+                    .totalPrice(price)
+                    .status(booking.getStatus().name())
+                    .staffName(artistName)
+                    .staffRole("Nail Artist")
+                    .build();
+        });
     }
 
     public Page<BookingResponse> getAllBookings(int page, int size) {
@@ -418,7 +462,7 @@ public class BookingServiceImpl implements BookingService {
             readOnly = true
     )
     public BookingResponse getBookingById(Long id) {
-        Booking booking = (Booking)this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+        Booking booking = this.bookingRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
         return this.mapToResponse(booking);
     }
 
@@ -683,7 +727,7 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // 🌟 ၂။ Instant နှင့် Duration ကိုသုံး၍ ဝန်ထမ်းပြင်ဆင်ချိန် (Buffer Time) Bounds များကို တိုက်ရိုက်တွက်ချက်ခြင်း
+        // ၂။ Instant နှင့် Duration ကိုသုံး၍ ဝန်ထမ်းပြင်ဆင်ချိန် Bounds များကို တိုက်ရိုက်တွက်ချက်ခြင်း
         int bufferMinutes = 10;
         Instant customerStartTime = bookingDate;
         Instant customerEndTime = customerStartTime.plus(Duration.ofMinutes(duration));
@@ -694,15 +738,16 @@ public class BookingServiceImpl implements BookingService {
         // Active ဖြစ်သော Staff များကို ယူခြင်း
         List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
 
-        // 🌟 ၃။ Helper Method သို့ Instant Parameters များ ပေးပို့ခြင်း
+        // ၃။ Helper Method သို့ Instant Parameters များ ပေးပို့ခြင်း
         List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(bookingDate, staffStartTime, staffEndTime, bufferMinutes);
 
         return activeProfiles.stream()
+                // 🎯 🌟 Fix: ရွေးချယ်ထားသော ရက်တွင် Day Off/ခွင့် ရှိသည့် ဝန်ထမ်းများကို စာရင်းထဲမှ လုံးဝ ဖယ်ထုတ်ခြင်း
+                .filter(profile -> !isStaffOnLeave(profile, bookingDate))
                 .map(profile -> {
-                    Long staffUserId = profile.getUser().getId(); // 🌟 ဝန်ထမ်း၏ User ID
-                    Long staffProfileId = profile.getId();        // ဝန်ထမ်း၏ Staff Profile ID
+                    Long staffUserId = profile.getUser().getId();
+                    Long staffProfileId = profile.getId();
 
-                    // (က) Busy ဖြစ်မဖြစ် စစ်ဆေးခြင်း Logic များ... (ဆရာကြီး၏ မူလကုဒ်အတိုင်း)
                     boolean isStaffBusy = staffAssignmentRepository.isStaffBusy(staffUserId, staffStartTime, staffEndTime);
                     boolean isRequestedByOtherPending = overlappingPendingBookings.stream()
                             .anyMatch(pb -> pb.getRequestedStaff() != null && pb.getRequestedStaff().getUser().getId().equals(staffUserId));
@@ -713,13 +758,12 @@ public class BookingServiceImpl implements BookingService {
                     long pendingCount = bookingRepository.countPendingByStaffProfileId(staffProfileId);
                     int totalBookingCount = (int) (confirmedCount + pendingCount);
 
-                    // 🌟 Response ဆောက်သည့်နေရာတွင် userId ကိုပါ ထည့်သွင်း Build လုပ်ခြင်း
                     return CustomerStaffResponse.builder()
-                            .userId(staffUserId) // 🔥 ဤလိုင်းလေး ဖြည့်စွက်ပါ ဆရာကြီး
+                            .userId(staffUserId)
                             .staffProfileId(staffProfileId)
                             .fullName(profile.getUser().getFullName())
                             .profilePicture(profile.getUser().getProfilePicture())
-                            .specializedName("Nail Artist")
+                            .specializedName(profile.getSpecializedName() != null ? profile.getSpecializedName() : "Nail Artist")
                             .rating(profile.getRating())
                             .isAvailable(isAvailable)
                             .bookingCount(totalBookingCount)
@@ -730,13 +774,18 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<HomeStaffResponse> getStaffListForHomePage() {
-        // 🌟 ပြင်ဆင်ချက်: Frontend မှ လှမ်းစစ်နိုင်ရန် findByIsAvailableTrue() အစား findAll() ဖြင့် ဝန်ထမ်းအားလုံးကို ယူပါမည်
+        // ၁။ ဝန်ထမ်းအားလုံးကို Database မှ ဆွဲယူခြင်း
         List<StaffProfile> allProfiles = staffProfileRepository.findAll();
 
         return allProfiles.stream()
                 .map(profile -> {
-                    // ရရှိထားသော Review စုစုပေါင်း အရေအတွက်ကို တွက်ချက်ခြင်း
-                    int totalBooking = profile.getAssignedBookings() != null ? profile.getAssignedBookings().size() : 0;
+                    // 🎯 🌟 Fix: Ranking စီရန်အတွက် အောင်မြင်စွာပြီးဆုံးခဲ့သော (COMPLETED) Booking များကိုသာ သီးသန့် ရေတွက်ခြင်း
+                    int completedBookingCount = 0;
+                    if (profile.getAssignedBookings() != null) {
+                        completedBookingCount = (int) profile.getAssignedBookings().stream()
+                                .filter(booking -> booking.getStatus() != null && "COMPLETED".equals(booking.getStatus().name()))
+                                .count();
+                    }
 
                     return HomeStaffResponse.builder()
                             .userId(profile.getUser().getId())
@@ -745,38 +794,21 @@ public class BookingServiceImpl implements BookingService {
                             .profilePicture(profile.getUser().getProfilePicture())
                             .specializedName(profile.getSpecializedName() != null ? profile.getSpecializedName() : "Nail Artist")
                             .rating(profile.getRating() != null ? profile.getRating() : 0.0)
-                            .bookingCount(totalBooking)
-                            .isAvailable(profile.isAvailable()) // 🌟 ဤနေရာတွင် အလုပ်လုပ်နိုင်မှု Status ကို ထည့်သွင်းပေးလိုက်ပါပြီ
+                            .bookingCount(completedBookingCount) // 🌟 Completed Booking Count ကို ထည့်သွင်းခြင်း
+                            .isAvailable(profile.isAvailable())
                             .build();
                 })
-                .toList();
-    }
+                // 🎯 🌟 အဓိက ပြင်ဆင်ချက်: Multi-level Sorting (Ranking) ပြုလုပ်ခြင်း
+                .sorted((staff1, staff2) -> {
+                    // (က) ပထမဦးစားပေး - Rating မြင့်မားသူကို အပေါ်တွင် အရင်ပြရန် (Descending Order)
+                    int ratingCompare = Double.compare(staff2.getRating(), staff1.getRating());
+                    if (ratingCompare != 0) {
+                        return ratingCompare;
+                    }
 
-    @Override
-    public List<AvailableStaffResponse> getAvailableStaffForDateTime(Instant bookingDate) {
-        int bufferMinutes = 10;
-        Instant staffStartTime = bookingDate.minus(Duration.ofMinutes(bufferMinutes));
-        Instant staffEndTime = bookingDate.plus(Duration.ofMinutes(60 + bufferMinutes));
-
-        List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
-
-        List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(bookingDate, staffStartTime, staffEndTime, bufferMinutes);
-
-        return activeProfiles.stream()
-                .filter(profile -> {
-                    Long staffUserId = profile.getUser().getId();
-                    boolean isStaffBusy = staffAssignmentRepository.isStaffBusy(staffUserId, staffStartTime, staffEndTime);
-                    boolean isRequestedByOtherPending = overlappingPendingBookings.stream()
-                            .anyMatch(pb -> pb.getRequestedStaff() != null && pb.getRequestedStaff().getUser().getId().equals(staffUserId));
-                    return !isStaffBusy && !isRequestedByOtherPending;
+                    // (ခ) ဒုတိယဦးစားပေး - Rating တူညီနေပါက Completed BookingCount များသူကို အပေါ်သို့ ပို့ရန် (Descending Order)
+                    return Integer.compare(staff2.getBookingCount(), staff1.getBookingCount());
                 })
-                // 🌟 Entity အစား Frontend အတွက် လိုအပ်သော ဒေတာသန့်သန့်လေးကိုသာ Map လုပ်၍ ပြန်ပေးခြင်း
-                .map(profile -> AvailableStaffResponse.builder()
-                        .userId(profile.getUser().getId())
-                        .staffProfileId(profile.getId())
-                        .fullName(profile.getUser().getFullName())
-                        .profilePicture(profile.getUser().getProfilePicture())
-                        .build())
                 .toList();
     }
 
@@ -1000,6 +1032,17 @@ public class BookingServiceImpl implements BookingService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return this.userRepository.findByEmail(email)
                 .orElseThrow(() -> new UnauthorizedException("Authenticated user not found"));
+    }
+
+    private boolean isStaffOnLeave(StaffProfile profile, Instant bookingDate) {
+        if (profile.getLeaves() == null || profile.getLeaves().isEmpty()) {
+            return false;
+        }
+        // 🎯 ဝန်ထမ်း၏ ခွင့်ရက်များထဲတွင် ရွေးချယ်ထားသော bookingDate ငြိနေခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
+        return profile.getLeaves().stream().anyMatch(leave ->
+                !bookingDate.isBefore(leave.getStartDate()) &&
+                        (leave.getEndDate() == null || !bookingDate.isAfter(leave.getEndDate()))
+        );
     }
 
     private BookingResponse mapToResponse(Booking booking) {

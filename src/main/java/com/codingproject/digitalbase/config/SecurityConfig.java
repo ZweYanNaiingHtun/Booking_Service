@@ -66,6 +66,7 @@ public class SecurityConfig {
                 .csrf((csrf) -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests((req) -> ((AuthorizeHttpRequestsConfigurer.AuthorizedUrl)((AuthorizeHttpRequestsConfigurer.AuthorizedUrl)((AuthorizeHttpRequestsConfigurer.AuthorizedUrl)((AuthorizeHttpRequestsConfigurer.AuthorizedUrl) req
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(new String[]{"/api/auth/login", "/api/auth/refresh","/api/auth/signup/init" ,"/api/auth/verify-otp","/api/auth/forgot-password" })).permitAll()
                         .requestMatchers(new String[]{"/login/oauth2/**", "/oauth2/**"})).permitAll().requestMatchers(new String[]{"/error"})).permitAll()
                         .anyRequest()).authenticated()).sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authenticationProvider(this.authenticationProvider())

@@ -12,4 +12,7 @@ public interface StaffLeaveRepository extends JpaRepository<StaffLeave, Long> {
 
     @Query("SELECT sl FROM StaffLeave sl WHERE sl.startDate <= :monthEnd AND sl.endDate >= :monthStart")
     List<StaffLeave> findLeavesInPeriod(@Param("monthStart") Instant monthStart, @Param("monthEnd") Instant monthEnd);
+
+    @Query("SELECT l FROM StaffLeave l WHERE :targetDate >= l.startDate AND (l.endDate IS NULL OR :targetDate <= l.endDate)")
+    List<StaffLeave> findActiveLeavesByDate(@Param("targetDate") Instant targetDate);
 }

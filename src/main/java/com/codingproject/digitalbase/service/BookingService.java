@@ -31,15 +31,13 @@ public interface BookingService {
             message = "Staff ID is required"
     ) Long staffId);
 
-    List<AvailableStaffResponse> getAvailableStaffForDateTime(Instant bookingDate);
-
     BookingResponse acceptBooking(Long id);
 
     BookingResponse completeBooking(Long id);
 
     InvoiceResponse generateInvoice(Long id);
 
-    Page<BookingResponse> getMyBookingHistory(int page, int size);
+    Page<BookingHistoryResponse> getMyBookingHistory(int page, int size);
 
     Page<BookingResponse> getAllBookings(int page, int size);
 

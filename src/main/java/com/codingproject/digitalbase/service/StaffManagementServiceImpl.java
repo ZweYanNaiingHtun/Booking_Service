@@ -247,16 +247,23 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                     .filter(l -> l.getStaffProfile().getId().equals(staff.getId()))
                     .findFirst().orElse(null);
 
+            User user = staff.getUser();
+
+            // 🌟 User Object ထဲမှ Role Name ကို စာသားအဖြစ် သန့်သန့်လေး ပြောင်းလဲခြင်း
+            String roleName = user.getRoles().stream()
+                    .map(role -> role.getRole().name())
+                    .collect(Collectors.joining(", "));
+
             DailyStaffStatusResponse.StaffStatusDTO dto = DailyStaffStatusResponse.StaffStatusDTO.builder()
                     .id(staff.getId())
-                    .name(staff.getUser().getFullName())
-                    .role(staff.getUser().getRoles().toString())
-                    .profileImage(staff.getUser().getProfilePicture())
+                    .name(user.getFullName())
+                    .role(roleName)
+                    .profileImage(user.getProfilePicture())
                     .build();
 
             if (staffLeave == null) {
                 activeStaff.add(dto);
-            } else if (LeaveType.DAY_OFF == staffLeave.getLeaveType()) { // 🎯 Enum ဖြင့် တိုက်ရိုက် စစ်ဆေးခြင်း
+            } else if (LeaveType.DAY_OFF == staffLeave.getLeaveType()) {
                 dayOffStaff.add(dto);
             } else {
                 leaveStaff.add(dto);
@@ -286,15 +293,22 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                     .filter(leave -> staffId == null || leave.getStaffProfile().getId().equals(staffId))
                     .collect(Collectors.toList());
 
-            List<CalendarMonthResponse.StaffLeaveEvent> events = dayLeaves.stream().map(leave ->
-                    CalendarMonthResponse.StaffLeaveEvent.builder()
-                            .staffId(leave.getStaffProfile().getId())
-                            .staffName(leave.getStaffProfile().getUser().getFullName())
-                            .role(leave.getStaffProfile().getUser().getRoles().toString())
-                            .leaveType(leave.getLeaveType()) // 🎯 Enum Type တန်းပေးလိုက်ပါသည်
-                            .note(leave.getNote())
-                            .build()
-            ).collect(Collectors.toList());
+            // 🌟 Fix: .map() အတွင်း Lambda Body ကိုသုံး၍ Role Name အမှားကို ပြင်ဆင်ထားပါသည်
+            List<CalendarMonthResponse.StaffLeaveEvent> events = dayLeaves.stream().map(leave -> {
+                User user = leave.getStaffProfile().getUser();
+
+                String roleName = user.getRoles().stream()
+                        .map(role -> role.getRole().name())
+                        .collect(Collectors.joining(", "));
+
+                return CalendarMonthResponse.StaffLeaveEvent.builder()
+                        .staffId(leave.getStaffProfile().getId())
+                        .staffName(user.getFullName())
+                        .role(roleName) // 🎯 ကွက်တိ စာသားအမှန် ထွက်လာပါလိမ့်မည်
+                        .leaveType(leave.getLeaveType())
+                        .note(leave.getNote())
+                        .build();
+            }).collect(Collectors.toList());
 
             monthlyData.add(CalendarMonthResponse.builder()
                     .date(finalCurrentDay)
@@ -305,6 +319,29 @@ public class StaffManagementServiceImpl implements StaffManagementService {
             currentDay = currentDay.plus(1, ChronoUnit.DAYS);
         }
         return monthlyData;
+    }
+
+    @Override
+    public List<StaffLeaveDetailResponse> getStaffLeavesBySelectedDate(Instant targetDate) {
+        // ဒေတာအားလုံးကို List အလိုက် ဆွဲယူခြင်း
+        List<StaffLeave> leaves = staffLeaveRepository.findActiveLeavesByDate(targetDate);
+
+        return leaves.stream().map(leave -> {
+            User user = leave.getStaffProfile().getUser();
+
+            String roleName = user.getRoles().stream()
+                    .map(role -> role.getRole().name())
+                    .collect(Collectors.joining(", "));
+
+            return StaffLeaveDetailResponse.builder()
+                    .staffProfileId(leave.getStaffProfile().getId())
+                    .staffName(user.getFullName())
+                    .role(roleName)
+                    .profileImage(user.getProfilePicture())
+                    .leaveType(leave.getLeaveType().name())
+                    .note(leave.getNote())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     @Override

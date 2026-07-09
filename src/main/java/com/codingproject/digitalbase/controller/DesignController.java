@@ -34,7 +34,7 @@ public class DesignController {
     @PreAuthorize("hasRole('SUPER_ADMIN')") // Admin တစ်ဦးတည်းသာ ပုံတင်ခွင့်ပြုမည်
     public ResponseEntity<DesignResponseDto> uploadDesign(
             @RequestParam("title") String title,
-            @RequestParam("file") MultipartFile file) throws IOException {
+            @RequestParam("designImage") MultipartFile file) throws IOException {
 
         // ဖိုင်အလွတ်ကြီး ဖြစ်နေပါက Error သတ်မှတ်မည်
         if (file.isEmpty()) {

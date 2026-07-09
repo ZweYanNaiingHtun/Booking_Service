@@ -32,7 +32,7 @@ public class UserController {
             value = {"/profile/photo"},
             consumes = {"multipart/form-data"}
     )
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF', 'ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF', 'SUPER_ADMIN')")
     public ResponseEntity<UserProfileResponse> updateProfilePhoto(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam("profileImage") MultipartFile profileImage) {

@@ -79,6 +79,10 @@ public class StaffManagementController {
         return ResponseEntity.ok("Staff leave assigned successfully!");
     }
 
+    @GetMapping("/selected-day-leaves")
+    public ResponseEntity<List<StaffLeaveDetailResponse>> getSelectedDayLeaves(@RequestParam Instant targetDate) {
+        return ResponseEntity.ok(staffService.getStaffLeavesBySelectedDate(targetDate));
+    }
 
     @PutMapping({"/{id}/status"})
     public ResponseEntity<StaffResponse> toggleStaffStatus(@PathVariable Long id, @RequestParam boolean enable) {
