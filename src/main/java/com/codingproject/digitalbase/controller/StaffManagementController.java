@@ -47,17 +47,22 @@ public class StaffManagementController {
 
     // 🎯 ၁။ နေ့အလိုက် ဝန်ထမ်းအခြေအနေ (Sidebar) - Instant သုံးထားပါသည်
     @GetMapping("/daily-status")
-    public ResponseEntity<DailyStaffStatusResponse> getDailyStatus(@RequestParam Instant date) {
-        return ResponseEntity.ok(staffService.getDailyStaffStatus(date));
+    public ResponseEntity<DailyStaffStatusResponse> getDailyStatus() {
+        // 🌟 Frontend က ဘာမှပို့ပေးစရာမလိုဘဲ လက်ရှိ အချိန် (Today) ကို Backend က တိုက်ရိုက်ယူမည်
+        return ResponseEntity.ok(staffService.getDailyStaffStatus(Instant.now()));
     }
 
     // 🎯 ၂။ Calendar ရက်အလိုက် Events များနှင့် Staff Filter (Start/End Range ကို Instant ဖြင့် ယူပါသည်)
     @GetMapping("/calendar")
     public ResponseEntity<List<CalendarMonthResponse>> getCalendarOverview(
-            @RequestParam Instant startDate,
-            @RequestParam Instant endDate,
+            @RequestParam Integer month,
+            @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Long staffId) {
-        return ResponseEntity.ok(staffService.getCalendarMonthOverview(startDate, endDate, staffId));
+
+        // တကယ်လို့ year မပါလာရင် လက်ရှိ ရောက်နေတဲ့ နှစ် (ဥပမာ - 2026) ကို အလိုအလျောက် ယူပေးရန်
+        int selectedYear = (year != null) ? year : java.time.Year.now().getValue();
+
+        return ResponseEntity.ok(staffService.getCalendarMonthOverview(selectedYear, month, staffId));
     }
 
     @GetMapping

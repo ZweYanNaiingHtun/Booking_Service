@@ -15,4 +15,13 @@ public interface StaffLeaveRepository extends JpaRepository<StaffLeave, Long> {
 
     @Query("SELECT l FROM StaffLeave l WHERE :targetDate >= l.startDate AND (l.endDate IS NULL OR :targetDate <= l.endDate)")
     List<StaffLeave> findActiveLeavesByDate(@Param("targetDate") Instant targetDate);
+
+    @Query("SELECT COUNT(sl) > 0 FROM StaffLeave sl WHERE sl.staffProfile.id = :staffId " +
+            "AND sl.startDate <= :endDate AND sl.endDate >= :startDate")
+    boolean existsOverlappingLeave(@Param("staffId") Long staffId,
+                                   @Param("startDate") Instant startDate,
+                                   @Param("endDate") Instant endDate);
+
+    @Query("SELECT sl FROM StaffLeave sl WHERE :targetDate >= sl.startDate AND :targetDate <= sl.endDate")
+    List<StaffLeave> findActiveLeavesAt(@Param("targetDate") Instant targetDate);
 }

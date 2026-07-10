@@ -10,6 +10,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 
 import java.math.BigDecimal;
 import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
 
 
 @Builder
@@ -48,4 +50,14 @@ public class BusinessService {
 
     @Column(name = "duration_in_minutes", nullable = false)
     private Integer durationInMinutes;
+
+    // BusinessService.java မော်ဒယ်ထဲတွင် သွားရောက်ဖြည့်စွက်ပေးရန်
+    @ManyToMany
+    @JoinTable(
+            name = "package_services",
+            joinColumns = @JoinColumn(name = "package_id"),
+            inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    private List<BusinessService> bundledServices = new ArrayList<>();
+
 }

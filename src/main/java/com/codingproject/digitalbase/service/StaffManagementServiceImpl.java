@@ -207,13 +207,34 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         StaffProfile staffProfile = staffProfileRepository.findById(request.getStaffProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException("Staff member not found with ID: " + request.getStaffProfileId()));
 
-        // 🌟 ၂။ Handling Single-Day Leave with Instant
-        Instant startDate = request.getStartDate();
-        Instant endDate = (request.getEndDate() != null) ? request.getEndDate() : startDate;
+        // 🌟 ၂။ [SMART HANDLING] တစ်ရက်တည်းလား၊ ရက်ရှည်လား ခွဲခြားပြီး Time Boundary ညှိခြင်း
+        java.time.LocalDate startLocalDate = request.getStartDate().atZone(java.time.ZoneOffset.UTC).toLocalDate();
+
+        // Start Date အား ၎င်းနေ့၏ 00:00:00 UTC အဖြစ် သတ်မှတ်ခြင်း
+        java.time.Instant startDate = startLocalDate.atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        java.time.Instant endDate;
+
+        if (request.getEndDate() == null) {
+            // 🎯 Frontend က startDate တစ်ခုပဲ ပို့လာလျှင် (One Day Off) -> ၎င်းနေ့၏ 23:59:59 UTC အဖြစ် အလိုအလျောက် သတ်မှတ်ခြင်း
+            endDate = startLocalDate.atTime(java.time.LocalTime.of(23, 59, 59)).toInstant(java.time.ZoneOffset.UTC);
+        } else {
+            // ရက်ရှည် ခွင့်တိုင်လျှင် -> End Date ၏ 23:59:59 UTC အထိ ယူခြင်း
+            java.time.LocalDate endLocalDate = request.getEndDate().atZone(java.time.ZoneOffset.UTC).toLocalDate();
+            endDate = endLocalDate.atTime(java.time.LocalTime.of(23, 59, 59)).toInstant(java.time.ZoneOffset.UTC);
+        }
 
         // ၃။ Validation (စတင်ချိန်သည် ကုန်ဆုံးချိန်ထက် မကျော်လွန်စေရန် စစ်ဆေးခြင်း)
         if (startDate.isAfter(endDate)) {
             throw new BadRequestException("Start date cannot be after end date.");
+        }
+
+        // ခွင့်ရက်စွဲ ထပ်နေခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
+        boolean isOverlapping = staffLeaveRepository.existsOverlappingLeave(
+                request.getStaffProfileId(), startDate, endDate
+        );
+
+        if (isOverlapping) {
+            throw new BadRequestException("Leave assignment denied! This staff member already has an assigned leave during the selected period.");
         }
 
         // ၄။ Entity ထဲသို့ ထည့်သွင်း၍ DB တွင် သိမ်းဆည်းခြင်း
@@ -230,26 +251,26 @@ public class StaffManagementServiceImpl implements StaffManagementService {
 
     @Override
     public DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate) {
+        // ၁။ ဝန်ထမ်းအားလုံးကို Fetch လုပ်ခြင်း
         List<StaffProfile> allStaff = staffProfileRepository.findAll();
 
-        // Target နေ့တွင် ငြိနေသော ခွင့်များကို စစ်ထုတ်ခြင်း
-        List<StaffLeave> activeLeaves = staffLeaveRepository.findAll().stream()
-                .filter(leave -> !targetDate.isBefore(leave.getStartDate()) &&
-                        (leave.getEndDate() == null || !targetDate.isAfter(leave.getEndDate())))
-                .collect(Collectors.toList());
+        // 🎯 🌟 [OPTIMIZED] findAll() အစား Target နေ့နှင့် ငြိနေသော ခွင့်များကိုသာ DB ထဲမှ တိုက်ရိုက်ဆွဲထုတ်ခြင်း
+        List<StaffLeave> activeLeaves = staffLeaveRepository.findActiveLeavesAt(targetDate);
 
         List<DailyStaffStatusResponse.StaffStatusDTO> activeStaff = new ArrayList<>();
         List<DailyStaffStatusResponse.StaffStatusDTO> dayOffStaff = new ArrayList<>();
         List<DailyStaffStatusResponse.StaffStatusDTO> leaveStaff = new ArrayList<>();
 
         for (StaffProfile staff : allStaff) {
+            // အဆိုပါ ဝန်ထမ်းသည် ယနေ့ ခွင့်ယူထားခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
             StaffLeave staffLeave = activeLeaves.stream()
                     .filter(l -> l.getStaffProfile().getId().equals(staff.getId()))
-                    .findFirst().orElse(null);
+                    .findFirst()
+                    .orElse(null);
 
             User user = staff.getUser();
 
-            // 🌟 User Object ထဲမှ Role Name ကို စာသားအဖြစ် သန့်သန့်လေး ပြောင်းလဲခြင်း
+            // User Object ထဲမှ Role Name ကို စာသားအဖြစ် ပြောင်းလဲခြင်း
             String roleName = user.getRoles().stream()
                     .map(role -> role.getRole().name())
                     .collect(Collectors.joining(", "));
@@ -261,6 +282,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                     .profileImage(user.getProfilePicture())
                     .build();
 
+            // အုပ်စု ၃ စု ခွဲခြားထည့်သွင်းခြင်း
             if (staffLeave == null) {
                 activeStaff.add(dto);
             } else if (LeaveType.DAY_OFF == staffLeave.getLeaveType()) {
@@ -279,21 +301,32 @@ public class StaffManagementServiceImpl implements StaffManagementService {
 
     // 🎯 ပြက္ခဒိန်အတွက် Range အလိုက် Loop ပတ်ပြီး Data ထုတ်ပေးခြင်း
     @Override
-    public List<CalendarMonthResponse> getCalendarMonthOverview(Instant startDate, Instant endDate, Long staffId) {
+    public List<CalendarMonthResponse> getCalendarMonthOverview(Integer year, Integer month, Long staffId) {
         List<CalendarMonthResponse> monthlyData = new ArrayList<>();
 
-        Instant currentDay = startDate;
-        // Start Date မှ End Date အထိ တစ်ရက်ချင်းစီကို Loop ပတ်ပြီး စစ်ဆေးသည်
-        while (!currentDay.isAfter(endDate)) {
-            final Instant finalCurrentDay = currentDay;
+        // 🎯 🌟 [NEW] ပို့လိုက်သော Year နှင့် Month အလိုက် Start Date / End Date အား အလိုအလျောက် တွက်ချက်ခြင်း
+        java.time.YearMonth yearMonth = java.time.YearMonth.of(year, month);
+        java.time.LocalDate startLocalDate = yearMonth.atDay(1);              // ဥပမာ - 2026-06-01
+        java.time.LocalDate endLocalDate = yearMonth.atEndOfMonth();          // ဥပမာ - 2026-06-30 (၃၁ ရက်အမှားမျိုး လုံးဝမတက်တော့ပါ)
 
-            List<StaffLeave> dayLeaves = staffLeaveRepository.findAll().stream()
+        java.time.Instant startDate = startLocalDate.atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        java.time.Instant endDate = endLocalDate.atTime(java.time.LocalTime.MAX).toInstant(java.time.ZoneOffset.UTC);
+
+        // 🚀 [PERFORMANCE FIX] DB ကို Loop ထဲမှာ အကြိမ် ၃၀ သွားမခေါ်တော့ဘဲ အပြင်မှာ တစ်ခါတည်း ဆွဲထုတ်၍ Memory ပေါ်တွင် Filter ပတ်ခြင်း
+        List<StaffLeave> allLeaves = staffLeaveRepository.findAll();
+
+        java.time.Instant currentDay = startDate;
+        // Start Date မှ End Date အထိ တစ်ရက်ချင်းစီကို Loop ပတ်သည်
+        while (!currentDay.isAfter(endDate)) {
+            final java.time.Instant finalCurrentDay = currentDay;
+
+            // DB သို့ ထပ်မသွားတော့ဘဲ အပေါ်က ဆွဲထားသော List ထဲမှသာ Filter လုပ်ခြင်း
+            List<StaffLeave> dayLeaves = allLeaves.stream()
                     .filter(leave -> !finalCurrentDay.isBefore(leave.getStartDate()) &&
                             (leave.getEndDate() == null || !finalCurrentDay.isAfter(leave.getEndDate())))
                     .filter(leave -> staffId == null || leave.getStaffProfile().getId().equals(staffId))
                     .collect(Collectors.toList());
 
-            // 🌟 Fix: .map() အတွင်း Lambda Body ကိုသုံး၍ Role Name အမှားကို ပြင်ဆင်ထားပါသည်
             List<CalendarMonthResponse.StaffLeaveEvent> events = dayLeaves.stream().map(leave -> {
                 User user = leave.getStaffProfile().getUser();
 
@@ -304,7 +337,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                 return CalendarMonthResponse.StaffLeaveEvent.builder()
                         .staffId(leave.getStaffProfile().getId())
                         .staffName(user.getFullName())
-                        .role(roleName) // 🎯 ကွက်တိ စာသားအမှန် ထွက်လာပါလိမ့်မည်
+                        .role(roleName)
                         .leaveType(leave.getLeaveType())
                         .note(leave.getNote())
                         .build();
@@ -316,7 +349,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                     .build());
 
             // နောက်တစ်ရက်သို့ ကူးပြောင်းခြင်း
-            currentDay = currentDay.plus(1, ChronoUnit.DAYS);
+            currentDay = currentDay.plus(1, java.time.temporal.ChronoUnit.DAYS);
         }
         return monthlyData;
     }

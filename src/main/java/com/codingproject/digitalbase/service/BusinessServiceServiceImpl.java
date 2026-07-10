@@ -33,7 +33,7 @@ public class BusinessServiceServiceImpl implements BusinessServiceService {
             readOnly = true
     )
     public ServiceResponse getServiceById(Long id) {
-        BusinessService service = (BusinessService)this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
+        BusinessService service = this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
         return this.mapToResponse(service);
     }
 
@@ -42,7 +42,7 @@ public class BusinessServiceServiceImpl implements BusinessServiceService {
         if (this.serviceRepository.existsByName(request.getName())) {
             throw new BadRequestException("Service name already exists");
         } else {
-            Category category = (Category)this.categoryRepository.findById(request.getCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            Category category = this.categoryRepository.findById(request.getCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Category not found"));
             BusinessService service = new BusinessService();
             service.setName(request.getName());
             service.setDescription(request.getDescription());
@@ -50,37 +50,37 @@ public class BusinessServiceServiceImpl implements BusinessServiceService {
             service.setCategory(category);
             service.setDurationInMinutes(request.getDurationInMinutes());
             service.set_package(request.isPackage());
-            return this.mapToResponse((BusinessService)this.serviceRepository.save(service));
+            return this.mapToResponse(this.serviceRepository.save(service));
         }
     }
 
     @Transactional
     public ServiceResponse updateService(Long id, ServiceRequest request) {
-        BusinessService service = (BusinessService)this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
+        BusinessService service = this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
         if (!service.getName().equals(request.getName()) && this.serviceRepository.existsByName(request.getName())) {
             throw new BadRequestException("Service name already exists");
         } else {
-            Category category = (Category)this.categoryRepository.findById(request.getCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            Category category = this.categoryRepository.findById(request.getCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Category not found"));
             service.setName(request.getName());
             service.setDescription(request.getDescription());
             service.setPrice(request.getPrice());
             service.setCategory(category);
             service.setDurationInMinutes(request.getDurationInMinutes());
             service.set_package(request.isPackage());
-            return this.mapToResponse((BusinessService)this.serviceRepository.save(service));
+            return this.mapToResponse(this.serviceRepository.save(service));
         }
     }
 
     @Transactional
     public void deleteService(Long id) {
-        BusinessService service = (BusinessService)this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
+        BusinessService service = this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
         service.setEnabled(false);
         this.serviceRepository.save(service);
     }
 
     @Transactional
     public void restoreService(Long id) {
-        BusinessService service = (BusinessService)this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
+        BusinessService service = this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
         if (service.isEnabled()) {
             throw new BadRequestException("Service is already active and does not need to be restored.");
         } else {

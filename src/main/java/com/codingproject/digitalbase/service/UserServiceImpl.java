@@ -33,7 +33,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile(String email) {
-        User user = (User)this.userRepository.findByEmail(email)
+        User user = this.userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
         return this.mapToProfileResponse(user);
     }
@@ -41,7 +41,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserProfileResponse updateProfilePhoto(String email, MultipartFile profileImage) {
-        User user = (User)this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
+        User user = this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
         if (profileImage != null && !profileImage.isEmpty()) {
             try {
                 Path uploadPath = Paths.get("uploads/profile-pictures/");
@@ -72,7 +72,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserProfileResponse changePassword(String email, ChangePasswordRequest request) {
-        User user = (User)this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+        User user = this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
         if (!this.passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
             throw new BadRequestException("Current password does not match!");
         } else if (this.passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
@@ -107,18 +107,27 @@ public class UserServiceImpl implements UserService {
 
     // 🌟 🌟 🌟 ၃။ UI ဒီဇိုင်းနှင့် ကိုက်ညီအောင် Role ပါ တစ်ပါတည်း Map လုပ်ပေးခြင်း
     private UserProfileResponse mapToProfileResponse(User user) {
+        String relativeImagePath = null;
+
+        if (user.getProfilePicture() != null) {
+            // 🎯 ဆရာကြီး လိုချင်တဲ့အတိုင်း Host တွေ Port တွေမပါဘဲ Relative Path သန့်သန့်လေးပဲ ပေါင်းစပ်ခြင်း
+            relativeImagePath = "/uploads/profile-pictures/" + user.getProfilePicture();
+        } else {
+            // ပုံမရှိရင်လည်း Relative Path အတိုင်းပဲ Default ပြန်ပေးခြင်း
+            relativeImagePath = "/uploads/profile-pictures/default-profile.png";
+        }
+
         return UserProfileResponse.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .gender(user.getGender())
-                .profilePicture(user.getProfilePicture())
-                // 💡 UI ထဲက "Role: Admin" Badge အတွက် ဖြည့်စွက်ခြင်း (UserProfileResponse ထဲတွင် role field ရှိရန်လိုအပ်ပါသည်)
+                .profilePicture(relativeImagePath) // 🌟 အခုဆိုရင် ကွက်တိ "/uploads/profile-pictures/abc.png" ပုံစံပဲ ထွက်ပါတော့မယ်
                 .role(user.getRoles() != null && !user.getRoles().isEmpty() ?
                         user.getRoles().stream()
                                 .findFirst()
-                                .map(r -> r.getRole().name()) // r.getRole() က RoleName ကို ပြန်ပေးပြီး .name() က String ပြန်ပေးပါတယ်
+                                .map(r -> r.getRole().name())
                                 .orElse(null) : null)
                 .build();
     }

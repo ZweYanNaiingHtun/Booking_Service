@@ -119,13 +119,17 @@ public class VendorServiceImpl implements VendorService {
     }
 
     private VendorResponse mapToResponse(Vendor v) {
+
+        String bannerUrl = (v.getBannerImage() != null && !v.getBannerImage().isEmpty())
+                ? "/uploads/" + v.getBannerImage()
+                : null;
         return VendorResponse.builder()
                 .id(v.getId())
                 .name(v.getName())
                 .logo(v.getLogo())
                 .bannerTitle(v.getBannerTitle())
                 .bannerDescription(v.getBannerDescription())
-                .bannerImage(v.getBannerImage())
+                .bannerImage(bannerUrl)
                 .eventStartDate(v.getEventStartDate())
                 .eventEndDate(v.getEventEndDate())
                 .eventActive(v.isEventActive()) // Entity ဘက်မှ Getter ဖြစ်ပါသည်

@@ -28,7 +28,7 @@ public interface StaffManagementService {
     DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate);
 
     // 🎯 ပြက္ခဒိန်အတွက် Range အလိုက် Loop ပတ်ပြီး Data ထုတ်ပေးခြင်း
-    List<CalendarMonthResponse> getCalendarMonthOverview(Instant startDate, Instant endDate, Long staffId);
+    List<CalendarMonthResponse> getCalendarMonthOverview(Integer year, Integer month, Long staffId);
 
     StaffResponse toggleStaffAvailability(Long staffProfileId, boolean available);
 
