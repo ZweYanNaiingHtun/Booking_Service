@@ -90,6 +90,20 @@ public class BusinessServiceServiceImpl implements BusinessServiceService {
     }
 
     private ServiceResponse mapToResponse(BusinessService service) {
-        return ServiceResponse.builder().id(service.getId()).name(service.getName()).description(service.getDescription()).price(service.getPrice()).categoryId(service.getCategory().getId()).categoryName(service.getCategory().getName()).durationInMinutes(service.getDurationInMinutes()).isPackage(service.is_package()).isEnabled(service.isEnabled()).build();
+        List<String> serviceNames = service.getBundledServices().stream()
+                .map(BusinessService::getName)
+                .toList();
+        return ServiceResponse.builder()
+                .id(service.getId())
+                .name(service.getName())
+                .description(service.getDescription())
+                .price(service.getPrice())
+                .categoryId(service.getCategory().getId())
+                .categoryName(service.getCategory().getName())
+                .durationInMinutes(service.getDurationInMinutes())
+                .isPackage(service.is_package())
+                .includedServices(serviceNames)
+                .isEnabled(service.isEnabled())
+                .build();
     }
 }

@@ -23,6 +23,5 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     List<Review> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
 
-    @Query("SELECT r.staffProfile, AVG(r.starRating) as avgRating FROM Review r GROUP BY r.staffProfile ORDER BY avgRating DESC")
-    List<Object[]> findTopStaffPerformance(Pageable pageable);
+    List<Review> findByStaffProfileIdOrderByCreatedAtDesc(Long staffProfileId);
 }

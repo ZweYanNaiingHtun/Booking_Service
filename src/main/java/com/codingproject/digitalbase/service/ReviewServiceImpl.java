@@ -7,7 +7,6 @@ package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.ReviewRequest;
 import com.codingproject.digitalbase.dtos.ReviewResponse;
-import com.codingproject.digitalbase.dtos.StaffPerformanceResponse;
 import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
 import com.codingproject.digitalbase.model.Booking;
@@ -20,12 +19,8 @@ import com.codingproject.digitalbase.repository.StaffProfileRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
-import lombok.Generated;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -39,9 +34,9 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Transactional
     public ReviewResponse submitReview(ReviewRequest request) {
-        Booking booking = (Booking)this.bookingRepository.findById(request.getBookingId()).orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+        Booking booking = this.bookingRepository.findById(request.getBookingId()).orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentCustomer = (User)this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User currentCustomer = this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         if (!booking.getCustomer().getId().equals(currentCustomer.getId())) {
             throw new BadRequestException("Unauthorized! You can only review your own bookings.");
         } else if (!"COMPLETED".equals(booking.getStatus().name())) {
@@ -54,7 +49,7 @@ public class ReviewServiceImpl implements ReviewService {
                 throw new BadRequestException("No staff member was assigned to this booking.");
             } else {
                 Review review = Review.builder().booking(booking).customer(currentCustomer).staffProfile(staffProfile).starRating(request.getStarRating()).comment(request.getComment()).build();
-                Review savedReview = (Review)this.reviewRepository.save(review);
+                Review savedReview = this.reviewRepository.save(review);
                 List<Review> allReviewsForStaff = this.reviewRepository.findByStaffProfileId(staffProfile.getId());
                 double totalStars = allReviewsForStaff.stream().mapToDouble(Review::getStarRating).sum();
                 double averageRating = totalStars / (double)allReviewsForStaff.size();
@@ -65,33 +60,44 @@ public class ReviewServiceImpl implements ReviewService {
         }
     }
 
-    public List<ReviewResponse> getReviewsByCustomer() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentCustomer = (User)this.userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return this.reviewRepository.findByCustomerIdOrderByCreatedAtDesc(currentCustomer.getId()).stream().map(this::mapToResponse).toList();
-    }
+    @Override
+    @Transactional
+    public List<ReviewResponse> getMyReviewHistory(String email) {
+        // ၁။ Token မှ ရလာသော Email ဖြင့် လက်ရှိ User ကို ရှာဖွေခြင်း
+        User currentUser = this.userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
-    public List<StaffPerformanceResponse> getStaffPerformanceRanking() {
-        Pageable topFive = PageRequest.of(0, 5);
-        List<Object[]> results = this.reviewRepository.findTopStaffPerformance(topFive);
-        return results.stream().map((result) -> {
-            StaffProfile staff = (StaffProfile)result[0];
-            Double avgRating = (Double)result[1];
-            return StaffPerformanceResponse.builder().staffId(staff.getId()).staffName(staff.getUser().getFullName()).averageRating((double)Math.round(avgRating * (double)10.0F) / (double)10.0F).build();
-        }).toList();
-    }
+        // ၂။ လက်ရှိ User ထဲတွင် STAFF Role ပါဝင်နေခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
+        boolean isStaff = currentUser.getRoles().stream()
+                .anyMatch(role -> "STAFF".equals(role.getRole().name()));
 
-    public List<ReviewResponse> getReviewsByStaff(Long staffId) {
-        if (!this.staffProfileRepository.existsById(staffId)) {
-            throw new ResourceNotFoundException("Staff profile not found with ID: " + staffId);
-        } else {
-            Pageable pageable = PageRequest.of(0, 20, Sort.by(new String[]{"createdAt"}).descending());
-            Page<Review> reviewPage = this.reviewRepository.findByStaffProfileId(staffId, pageable);
-            return reviewPage.getContent().stream().map(this::mapToResponse).toList();
+        // 🎯 ၃။ အကယ်၍ ခေါ်ဆိုသူသည် STAFF ဖြစ်ပါက မိမိရရှိထားသော Review များကို ပြပေးခြင်း
+        if (isStaff) {
+            StaffProfile staffProfile = this.staffProfileRepository.findByUserId(currentUser.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Staff profile not found for user: " + email));
+
+            return this.reviewRepository.findByStaffProfileIdOrderByCreatedAtDesc(staffProfile.getId())
+                    .stream()
+                    .map(this::mapToResponse)
+                    .toList();
         }
+
+        // 🎯 ၄။ အကယ်၍ ခေါ်ဆိုသူသည် CUSTOMER ဖြစ်ပါက မိမိရေးသားခဲ့ဖူးသော Review များကို ပြပေးခြင်း
+        return this.reviewRepository.findByCustomerIdOrderByCreatedAtDesc(currentUser.getId())
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     private ReviewResponse mapToResponse(Review review) {
-        return ReviewResponse.builder().id(review.getId()).bookingId(review.getBooking().getId()).customerName(review.getCustomer().getFullName()).staffName(review.getStaffProfile().getUser().getFullName()).starRating(review.getStarRating()).comment(review.getComment()).createdAt(review.getCreatedAt()).build();
+        return ReviewResponse.builder()
+                .id(review.getId())
+                .bookingId(review.getBooking().getId())
+                .customerName(review.getCustomer().getFullName())
+                .staffName(review.getStaffProfile().getUser().getFullName())
+                .starRating(review.getStarRating())
+                .comment(review.getComment())
+                .createdAt(review.getCreatedAt())
+                .build();
     }
 }

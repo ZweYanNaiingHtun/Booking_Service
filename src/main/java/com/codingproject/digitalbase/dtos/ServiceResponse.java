@@ -1,6 +1,8 @@
 package com.codingproject.digitalbase.dtos;
 
 import java.math.BigDecimal;
+import java.util.List;
+
 import lombok.*;
 
 @Data
@@ -18,4 +20,5 @@ public class ServiceResponse {
     private Long categoryId;
     private String categoryName;
     private Integer durationInMinutes;
+    private List<String> includedServices;
 }
