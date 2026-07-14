@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -97,9 +98,9 @@ public class BookingManagementServiceImpl implements BookingManagementService {
             String custName = b.getCustomer() != null ? b.getCustomer().getFullName() : "-";
             String servName = b.getBusinessService() != null ? b.getBusinessService().getName() : "-";
 
-            String priceStr = "0 MMK";
+            BigDecimal price = BigDecimal.ZERO;
             if (b.getBusinessService() != null && b.getBusinessService().getPrice() != null) {
-                priceStr = numberFormat.format(b.getBusinessService().getPrice()) + " MMK";
+                price = b.getBusinessService().getPrice();
             }
 
             String bDateStr = b.getBookingDate() != null ? dateFormatter.format(b.getBookingDate().atZone(sysZone)) : "-";
@@ -123,10 +124,10 @@ public class BookingManagementServiceImpl implements BookingManagementService {
                     .bookingId("BK-" + b.getId())       // 💡 Frontend မှ bookingId တောင်းလျှင်လည်း အဆင်ပြေစေရန် ဖြည့်စွက်ခြင်း
                     .serviceName(servName)
                     .customerName(custName)
-                    .price(priceStr)
+                    .price(price)
                     .bookTime(bTimeStr)
                     .date(bDateStr)
-                    .duringTime("1 hr 30 mins")         // b.getBusinessService().getDuration() သို့ ပြောင်းလဲနိုင်ပါသည်
+                    .duringTime(b.getBusinessService().getDurationInMinutes())         // b.getBusinessService().getDuration() သို့ ပြောင်းလဲနိုင်ပါသည်
                     .staffName(staffNameStr)
                     .status(uiStatus)
                     .build();
@@ -155,25 +156,32 @@ public class BookingManagementServiceImpl implements BookingManagementService {
         // Instant အား ရန်ကုန်စံတော်ချိန်ပြောင်း၍ Format လုပ်ခြင်း
         ZonedDateTime zonedDateTime = booking.getBookingDate().atZone(ZoneId.of("Asia/Yangon"));
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE, MMMM dd . h:mm a", Locale.ENGLISH);
-        String appointmentStr = zonedDateTime.format(formatter); // Saturday, July 13 . 9:00 AM
+        String appointmentStr = zonedDateTime.format(formatter);
 
         String custName = booking.getCustomer() != null ? booking.getCustomer().getFullName() : "-";
-        String phone = booking.getCustomer() != null ? booking.getCustomer().getPhone() : "-"; // ဖုန်းကော်လံအမည် စစ်ဆေးပါ
+        String phone = booking.getCustomer() != null ? booking.getCustomer().getPhone() : "-";
 
-        String serviceDetails = "-";
-        String priceStr = "0 Kyats";
+        String serviceName = "-";
+        BigDecimal duration = null;
+        BigDecimal price = BigDecimal.ZERO; // 🌟 Default အနေဖြင့် ၀ ကျပ် သတ်မှတ်ပါသည်
+
         if (booking.getBusinessService() != null) {
-            serviceDetails = booking.getBusinessService().getName() + " (" + booking.getBusinessService().getDurationInMinutes() + " mins)";
-            java.text.NumberFormat nf = java.text.NumberFormat.getNumberInstance(Locale.US);
-            priceStr = nf.format(booking.getBusinessService().getPrice()) + " Kyats";
+            serviceName = booking.getBusinessService().getName();
+
+            Integer durationInMins = booking.getBusinessService().getDurationInMinutes();
+            if (durationInMins != null) {
+                duration = BigDecimal.valueOf(durationInMins);
+            }
+
+            // 🌟 'Kyats' စာသားမပါဘဲ Raw Price (BigDecimal) ကို တိုက်ရိုက်ရယူခြင်း
+            price = booking.getBusinessService().getPrice();
         }
 
         String staffStr = "Any Available Staff";
         if (booking.getAssignedStaff() != null) {
-            staffStr = "Nail artist, " + booking.getAssignedStaff().getUser().getFullName();
+            staffStr = booking.getAssignedStaff().getUser().getFullName();
         }
 
-        // UI Overlay ခေါင်းစဉ်နှင့် ကိုက်ညီအောင် Status စာသားညှိခြင်း
         String uiStatus = "Confirm";
         if (booking.getStatus() == BookingStatus.IN_PROGRESS) uiStatus = "Inprogress";
         else if (booking.getStatus() == BookingStatus.COMPLETED) uiStatus = "Completed";
@@ -184,8 +192,9 @@ public class BookingManagementServiceImpl implements BookingManagementService {
                 .phoneNumber(phone)
                 .appointmentDetails(appointmentStr)
                 .staffName(staffStr)
-                .serviceNameAndDuration(serviceDetails)
-                .totalCharges(priceStr)
+                .serviceName(serviceName)
+                .duration(duration)
+                .price(price) // 🌟 ပြင်ဆင်ပြီး (Raw Numeric Value သာ ဖြစ်ပါသည်)
                 .status(uiStatus)
                 .build();
     }

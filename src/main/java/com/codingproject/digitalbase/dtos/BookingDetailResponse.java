@@ -1,6 +1,7 @@
 package com.codingproject.digitalbase.dtos;
 
 import lombok.*;
+import java.math.BigDecimal;
 
 @Data
 @Builder
@@ -12,7 +13,8 @@ public class BookingDetailResponse {
     private String phoneNumber;
     private String appointmentDetails; // ဥပမာ - "Saturday, July 13 . 9:00 AM"
     private String staffName;          // ဥပမာ - "Nail artist, Myo Myo"
-    private String serviceNameAndDuration; // ဥပမာ - "Manicure Cleansing (50 mins)"
-    private String totalCharges;       // ဥပမာ - "5000 Kyats"
+    private String serviceName;        // ဥပမာ - "Manicure Cleansing"
+    private BigDecimal duration;       // ဥပမာ - 50
+    private BigDecimal price;          // 🌟 String အစား ကိန်းဂဏန်းသီးသန့် (ဥပမာ - 5000.00) ပြောင်းလဲလိုက်ပါသည်
     private String status;             // "Confirm", "Inprogress", "Completed"
 }

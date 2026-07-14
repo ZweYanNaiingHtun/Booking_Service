@@ -51,4 +51,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
             "OR u.phone LIKE CONCAT('%', :search, '%'))")
     Page<User> searchCustomers(@Param("search") String search, Pageable pageable);
+
+    // 🌟 [ADDED] Blocked Customer များကိုသာ ရှာဖွေပြီး Page အလိုက် ဆွဲထုတ်မည့် Query
+    @Query("SELECT u FROM User u WHERE u.enabled = false " +
+            "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+            "OR LOWER(u.phone) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<User> searchBlockedCustomers(@Param("search") String search, Pageable pageable);
 }

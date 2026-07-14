@@ -7,7 +7,9 @@ import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
 import com.codingproject.digitalbase.model.Notification;
 import com.codingproject.digitalbase.enums.TargetAudience;
+import com.codingproject.digitalbase.model.User;
 import com.codingproject.digitalbase.repository.NotificationRepository;
+import com.codingproject.digitalbase.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import java.util.stream.Collectors;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
     private final Path uploadPath = Paths.get("uploads/notifications/");
 
     @Override
@@ -35,7 +38,6 @@ public class NotificationServiceImpl implements NotificationService {
         String relativeImagePath = null;
         MultipartFile image = request.getImage();
 
-        // ၁။ DTO ထဲက ပုံပါလာပါက သိမ်းဆည်းခြင်း Logic
         if (image != null && !image.isEmpty()) {
             try {
                 if (!Files.exists(uploadPath)) {
@@ -52,7 +54,6 @@ public class NotificationServiceImpl implements NotificationService {
             }
         }
 
-        // ၂။ Request DTO မှ ဒေတာများကို Entity သို့ ပြောင်းလဲသိမ်းဆည်းခြင်း
         Notification notification = Notification.builder()
                 .title(request.getTitle())
                 .message(request.getMessage())
@@ -67,41 +68,56 @@ public class NotificationServiceImpl implements NotificationService {
         return mapToDTO(saved);
     }
 
-    // 🎯 Staff Notification သီးသန့်ဆွဲထုတ်ပေးမည့် Method
+    // 🖥️ [Admin Panel သီးသန့်] Target Audience အလိုက် သမိုင်းကြောင်းအားလုံးကို စစ်ထုတ်ခြင်းမရှိဘဲ ဆွဲထုတ်ပြမည့် Method
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationDTO> getStaffNotifications() {
-        return notificationRepository
-                .findByTargetAudienceOrderByCreatedAtDesc(TargetAudience.STAFF)
-                .stream().map(this::mapToDTO).collect(Collectors.toList());
+    public List<NotificationDTO> getAllNotificationsByAudience(TargetAudience audience) {
+        log.info("Admin UI: Fetching all global notification history for audience: {}", audience);
+        List<Notification> notifications = notificationRepository.findByTargetAudienceOrderByCreatedAtDesc(audience);
+        return notifications.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
-    // 🎯 Customer Notification သီးသန့်ဆွဲထုတ်ပေးမည့် Method
-    @Override
-    @Transactional(readOnly = true)
-    public List<NotificationDTO> getCustomerNotifications() {
-        return notificationRepository
-                .findByTargetAudienceOrderByCreatedAtDesc(TargetAudience.CUSTOMER)
-                .stream().map(this::mapToDTO).collect(Collectors.toList());
-    }
-
+    // 📱 [Customer Mobile App တွက်] Tab အလိုက် ကိုယ်ပိုင်သီးသန့် Inbox Filter မက်သတ်
     @Override
     @Transactional(readOnly = true)
     public List<NotificationDTO> getCustomerNotificationsByTab(String email, String tab) {
-        // 1. Target Audience က Customer ဖြစ်ကြောင်း သတ်မှတ်ခြင်း
-        TargetAudience audience = TargetAudience.CUSTOMER;
+        User customerUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found."));
 
+        TargetAudience audience = TargetAudience.CUSTOMER;
         List<Notification> results;
 
-        // 2. ပို့လိုက်သော Tab Parameter အပေါ်မူတည်ပြီး Filter လုပ်ခြင်း Logic
         if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceOrderByCreatedAtDesc(audience);
+            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience);
         } else if ("booking".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndTypeOrderByCreatedAtDesc(audience, NotificationType.BOOKING);
+            results = notificationRepository.findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
+                    audience, NotificationType.BOOKING, customerUser.getId());
         } else if ("promotion".equalsIgnoreCase(tab)) {
             results = notificationRepository.findByTargetAudienceAndTypeOrderByCreatedAtDesc(audience, NotificationType.PROMOTION);
         } else {
-            results = notificationRepository.findByTargetAudienceOrderByCreatedAtDesc(audience);
+            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience);
+        }
+
+        return results.stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    // 📱 [Staff Mobile App တွက်] Tab အလိုက် ကိုယ်ပိုင်သီးသန့် Inbox Filter မက်သတ် (🌟 ဖြည့်စွက်ချက်အသစ်)
+    @Override
+    @Transactional(readOnly = true)
+    public List<NotificationDTO> getStaffNotificationsByTab(String email, String tab) {
+        User staffUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found."));
+
+        TargetAudience audience = TargetAudience.STAFF;
+        List<Notification> results;
+
+        if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab) || "incoming".equalsIgnoreCase(tab)) {
+            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience);
+        } else if ("booking".equalsIgnoreCase(tab)) {
+            results = notificationRepository.findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
+                    audience, NotificationType.BOOKING, staffUser.getId());
+        } else {
+            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience);
         }
 
         return results.stream().map(this::mapToDTO).collect(Collectors.toList());
@@ -109,11 +125,17 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
-    public void markAsRead(Long id) {
+    public void markAsRead(Long id, String userEmail) {
         Notification notification = notificationRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found with id: " + id));
+
+        if (!notification.getUser().getEmail().equals(userEmail)) {
+            throw new BadRequestException("You are not authorized to mark this notification as read.");
+        }
+
         notification.setRead(true);
         notificationRepository.save(notification);
+        log.info("Notification ID: {} successfully marked as read by user: {}", id, userEmail);
     }
 
     @Override

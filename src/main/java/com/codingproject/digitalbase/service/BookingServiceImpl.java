@@ -505,61 +505,80 @@ public class BookingServiceImpl implements BookingService {
                 .booking(booking)
                 .build();
 
-        // Booking အခြေအနေအား Update ပြုလုပ်ခြင်း
         booking.setStatus(BookingStatus.CONFIRMED);
         booking.setAssignedStaff(finalStaffProfile);
         booking.setStaffAssignment(assignment);
 
-        // 🌟 ပြင်ဆင်ချက် ၁: Booking ကို အရင် Save လုပ်ပြီး Entity ပြန်ယူခြင်း
         Booking savedBooking = bookingRepository.save(booking);
         log.info("Booking ID: {} status successfully updated to CONFIRMED.", id);
 
-        // Notification အတွက် Content ပြင်ဆင်ခြင်း
+        // ==========================================
+        // 🌟 1. CUSTOMER NOTIFICATION
+        // ==========================================
         User customer = savedBooking.getCustomer();
-        String notiTitle = "Booking Confirmed! 🎉";
-        String notiBody = "Your booking for " + savedBooking.getBusinessService().getName() + " has been successfully confirmed with Staff: " + finalStaffProfile.getUser().getFullName();
+        String customerNotiTitle = "Booking Confirmed! 🎉";
+        String customerNotiBody = "Your booking for " + savedBooking.getBusinessService().getName() + " has been successfully confirmed with Staff: " + finalStaffProfile.getUser().getFullName();
 
-        // 🌟 ပြင်ဆင်ချက် ၂: Database Notification Record ကို စိတ်ချရအောင် ရေးသွင်းခြင်း
-        Notification dbNotification = Notification.builder()
-                .title(notiTitle)
-                .message(notiBody)
+        Notification customerDbNotification = Notification.builder()
+                .title(customerNotiTitle)
+                .message(customerNotiBody)
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
                 .user(customer)
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
+        notificationRepository.save(customerDbNotification);
 
-        notificationRepository.save(dbNotification);
-        log.info("Automated Notification successfully saved to DB for Customer: {}", customer.getEmail());
-
-        // 🌟 ပြင်ဆင်ချက် ၃: Response ကို အောက်ဆုံးမှ Map လုပ်ပြီး Return ပြန်ခြင်း
-        BookingResponse response = mapToResponse(savedBooking);
-
-        // 🌟 ပြင်ဆင်ချက် ၄: FCM Push Notification အပိုင်းကို Try-Catch ဖြင့် အုပ်ပေးထားခြင်း
-        // (FCM Network Error ဖြစ်ခဲ့လျှင်ပင် DB Transaction မပျက်သွားစေရန် ဖြစ်ပါတယ်)
         if (customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
             try {
-                fcmService.sendPushNotification(customer.getFcmToken(), notiTitle, notiBody);
-                log.info("FCM Push Notification sent to token successfully.");
+                fcmService.sendPushNotification(customer.getFcmToken(), customerNotiTitle, customerNotiBody);
             } catch (Exception e) {
-                log.error("FCM Push Notification failed but DB states are preserved. Error: {}", e.getMessage());
+                log.error("FCM Customer Push failed: {}", e.getMessage());
             }
         }
 
-        log.info("--- confirmBooking process successfully finished for ID: {} ---", id);
+        // ==========================================
+        // 🌟 2. STAFF NOTIFICATION (ဖြည့်စွက်ချက်အသစ်)
+        // ==========================================
+        User staffUser = finalStaffProfile.getUser();
+        String staffNotiTitle = "New Booking Assigned! 📅";
+        String staffNotiBody = "You have been assigned to a new booking: " + savedBooking.getBusinessService().getName() + " on " + savedBooking.getBookingDate();
+
+        Notification staffDbNotification = Notification.builder()
+                .title(staffNotiTitle)
+                .message(staffNotiBody)
+                .type(NotificationType.BOOKING)
+                .targetAudience(TargetAudience.STAFF) // 👈 TargetAudience.STAFF ကို သုံးထားပါတယ် ဆရာကြီး
+                .user(staffUser)
+                .isRead(false)
+                .createdAt(Instant.now())
+                .build();
+        notificationRepository.save(staffDbNotification);
+        log.info("Assigned Notification saved to DB for Staff: {}", staffUser.getEmail());
+
+        if (staffUser.getFcmToken() != null && !staffUser.getFcmToken().isEmpty()) {
+            try {
+                fcmService.sendPushNotification(staffUser.getFcmToken(), staffNotiTitle, staffNotiBody);
+                log.info("FCM Push Notification sent to Assigned Staff successfully.");
+            } catch (Exception e) {
+                log.error("FCM Staff Push failed: {}", e.getMessage());
+            }
+        }
+
+        BookingResponse response = mapToResponse(savedBooking);
+        log.info("--- confirmBooking process successfully finished ---");
         return response;
     }
 
     @Override
     @Transactional
     public BookingResponse cancelBookingByAdmin(Long id, String cancelledBy, String userEmail, String reason) {
-        log.info("--- Starting cancelBookingByAdmin process for ID: {} by {} ---", id, cancelledBy);
+        log.info("--- Starting cancelBookingByAdmin process for ID: {} ---", id);
 
         Booking booking = this.bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
 
-        // Role အလိုက် Authorization နှင့် Buffer Time စစ်ဆေးခြင်း
         if ("CUSTOMER".equals(cancelledBy)) {
             if (!booking.getCustomer().getEmail().equals(userEmail)) {
                 throw new BadRequestException("You are not authorized to cancel this booking.");
@@ -576,14 +595,17 @@ public class BookingServiceImpl implements BookingService {
             throw new BadRequestException("Only PENDING or CONFIRMED bookings can be cancelled.");
         }
 
-        // Staff Assignment အား ဖယ်ရှားခြင်း
+        // 🌟 ပြင်ဆင်ချက်- Noti ပို့ရန်အတွက် တာဝန်ကျ သို့မဟုတ် တောင်းဆိုထားသော Staff အား ကြိုတင် သိမ်းဆည်းထားခြင်း
+        StaffProfile staffToNotify = booking.getAssignedStaff() != null
+                ? booking.getAssignedStaff()
+                : booking.getRequestedStaff();
+
+        // Staff Assignment ဖျက်သိမ်းခြင်း
         if (booking.getStaffAssignment() != null) {
             this.staffAssignmentRepository.delete(booking.getStaffAssignment());
             booking.setStaffAssignment(null);
-            log.info("Staff assignment cleared for cancelled Booking ID: {}", id);
         }
 
-        // Booking Status ပြောင်းလဲခြင်း
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setAssignedStaff(null);
         booking.setCancelledBy(cancelledBy);
@@ -592,47 +614,69 @@ public class BookingServiceImpl implements BookingService {
             booking.setRejectionReason(reason);
         }
 
-        // 🌟 ပြင်ဆင်ချက် ၁: Booking ကို အရင်ဆုံး Save လုပ်ပါ
         Booking savedBooking = this.bookingRepository.save(booking);
-        log.info("Booking ID: {} status successfully updated to CANCELLED by {}.", id, cancelledBy);
+        log.info("Booking ID: {} updated to CANCELLED.", id);
 
-        // Notification Info ပြင်ဆင်ခြင်း
+        // ==========================================
+        // 🌟 1. CUSTOMER NOTIFICATION
+        // ==========================================
         User customer = savedBooking.getCustomer();
-        String notiTitle = "Booking Rejected ❌";
-        String notiBody = "Sorry, your booking for " + savedBooking.getBusinessService().getName() + " has been rejected by the admin.";
+        String customerNotiTitle = "Booking Rejected ❌";
+        String customerNotiBody = "Sorry, your booking for " + savedBooking.getBusinessService().getName() + " has been rejected by the admin.";
         if (reason != null && !reason.isBlank()) {
-            notiBody += " Reason: " + reason;
+            customerNotiBody += " Reason: " + reason;
         }
 
-        // 🌟 ပြင်ဆင်ချက် ၂: Database Notification Record အား အရင်ဆုံး သိမ်းဆည်းပါ
-        Notification dbNotification = Notification.builder()
-                .title(notiTitle)
-                .message(notiBody)
+        Notification customerDbNotification = Notification.builder()
+                .title(customerNotiTitle)
+                .message(customerNotiBody)
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
                 .user(customer)
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
-        this.notificationRepository.save(dbNotification);
-        log.info("Cancellation Notification saved to DB for Customer: {}", customer.getEmail());
+        this.notificationRepository.save(customerDbNotification);
 
-        // 🌟 ပြင်ဆင်ချက် ၃: Response DTO Mapping ကို အောက်ဆုံးသို့ ပို့ဆောင်ခြင်း
-        BookingResponse response = this.mapToResponse(savedBooking);
+        if ("ADMIN".equals(cancelledBy) && customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
+            try {
+                this.fcmService.sendPushNotification(customer.getFcmToken(), customerNotiTitle, customerNotiBody);
+            } catch (Exception e) {
+                log.error("FCM Customer Cancel Push failed: {}", e.getMessage());
+            }
+        }
 
-        // 🌟 ပြင်ဆင်ချက် ၄: FCM Push Notification အပိုင်းကို Try-Catch ဖြင့် အုပ်ပေးထားခြင်း
-        if ("ADMIN".equals(cancelledBy)) {
-            if (customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
+        // ==========================================
+        // 🌟 2. STAFF NOTIFICATION (ဖြည့်စွက်ချက်အသစ်)
+        // ==========================================
+        if (staffToNotify != null) {
+            User staffUser = staffToNotify.getUser();
+            String staffNotiTitle = "Booking Cancelled 🔴";
+            String staffNotiBody = "The booking for " + savedBooking.getBusinessService().getName() + " on " + savedBooking.getBookingDate() + " has been cancelled by Admin.";
+
+            Notification staffDbNotification = Notification.builder()
+                    .title(staffNotiTitle)
+                    .message(staffNotiBody)
+                    .type(NotificationType.BOOKING)
+                    .targetAudience(TargetAudience.STAFF)
+                    .user(staffUser)
+                    .isRead(false)
+                    .createdAt(Instant.now())
+                    .build();
+            this.notificationRepository.save(staffDbNotification);
+            log.info("Cancellation Noti saved to DB for Staff: {}", staffUser.getEmail());
+
+            if (staffUser.getFcmToken() != null && !staffUser.getFcmToken().isEmpty()) {
                 try {
-                    this.fcmService.sendPushNotification(customer.getFcmToken(), notiTitle, notiBody);
-                    log.info("FCM Cancellation Push Notification sent successfully.");
+                    this.fcmService.sendPushNotification(staffUser.getFcmToken(), staffNotiTitle, staffNotiBody);
                 } catch (Exception e) {
-                    log.error("FCM Push failed but DB Cancellation state is preserved. Error: {}", e.getMessage());
+                    log.error("FCM Staff Cancel Push failed: {}", e.getMessage());
                 }
             }
         }
 
-        log.info("--- cancelBookingByAdmin process successfully finished for ID: {} ---", id);
+        BookingResponse response = this.mapToResponse(savedBooking);
+        log.info("--- cancelBookingByAdmin process successfully finished ---");
         return response;
     }
 
@@ -644,7 +688,6 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = this.bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
 
-        // Customer Identity နှင့် ပယ်ဖျက်နိုင်သည့် အချိန် သတ်မှတ်ချက် စစ်ဆေးခြင်း
         if (!booking.getCustomer().getEmail().equals(userEmail)) {
             throw new BadRequestException("You are not authorized to cancel this booking.");
         }
@@ -660,7 +703,11 @@ public class BookingServiceImpl implements BookingService {
             throw new BadRequestException("Only PENDING or CONFIRMED bookings can be cancelled.");
         }
 
-        // Staff Assignment ဖြုတ်ခြင်း
+        // 🌟 ပြင်ဆင်ချက်- Noti ပို့ရန်အတွက် တာဝန်ကျ သို့မဟုတ် တောင်းဆိုထားသော Staff အား ကြိုတင် သိမ်းဆည်းထားခြင်း
+        StaffProfile staffToNotify = booking.getAssignedStaff() != null
+                ? booking.getAssignedStaff()
+                : booking.getRequestedStaff();
+
         if (booking.getStaffAssignment() != null) {
             this.staffAssignmentRepository.delete(booking.getStaffAssignment());
             booking.setStaffAssignment(null);
@@ -670,32 +717,58 @@ public class BookingServiceImpl implements BookingService {
         booking.setAssignedStaff(null);
         booking.setCancelledBy(cancelledBy);
 
-        // 🌟 ပြင်ဆင်ချက် ၁: Booking ကို အရင် Save လုပ်ပါ
         Booking savedBooking = this.bookingRepository.save(booking);
         log.info("Booking ID: {} successfully cancelled by Customer.", id);
 
-        // Customer Notification Panel အတွက် Message တည်ဆောက်ခြင်း
+        // ==========================================
+        // 🌟 1. CUSTOMER NOTIFICATION
+        // ==========================================
         User customer = savedBooking.getCustomer();
-        String notiTitle = "Booking Cancelled 🔴";
-        String notiBody = "Your appointment for " + savedBooking.getBusinessService().getName() + " has been successfully cancelled.";
+        String customerNotiTitle = "Booking Cancelled 🔴";
+        String customerNotiBody = "Your appointment for " + savedBooking.getBusinessService().getName() + " has been successfully cancelled.";
 
-        // 🌟 ပြင်ဆင်ချက် ၂: Mobile UI History တွင် ပေါ်စေရန် Notification Database Record သိမ်းဆည်းခြင်း
-        Notification dbNotification = Notification.builder()
-                .title(notiTitle)
-                .message(notiBody)
+        Notification customerDbNotification = Notification.builder()
+                .title(customerNotiTitle)
+                .message(customerNotiBody)
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
                 .user(customer)
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
-        this.notificationRepository.save(dbNotification);
-        log.info("Customer Self-Cancellation Notification saved to DB.");
+        this.notificationRepository.save(customerDbNotification);
 
-        // 🌟 ပြင်ဆင်ချက် ၃: Response mapping အား အောက်ဆုံးတွင် လုပ်ဆောင်ခြင်း
+        // ==========================================
+        // 🌟 2. STAFF NOTIFICATION (ဖြည့်စွက်ချက်အသစ်)
+        // ==========================================
+        if (staffToNotify != null) {
+            User staffUser = staffToNotify.getUser();
+            String staffNotiTitle = "Booking Cancelled by Customer 🔴";
+            String staffNotiBody = "The booking for " + savedBooking.getBusinessService().getName() + " on " + savedBooking.getBookingDate() + " has been cancelled by the customer.";
+
+            Notification staffDbNotification = Notification.builder()
+                    .title(staffNotiTitle)
+                    .message(staffNotiBody)
+                    .type(NotificationType.BOOKING)
+                    .targetAudience(TargetAudience.STAFF)
+                    .user(staffUser)
+                    .isRead(false)
+                    .createdAt(Instant.now())
+                    .build();
+            this.notificationRepository.save(staffDbNotification);
+            log.info("Customer Cancellation Noti saved to DB for Staff: {}", staffUser.getEmail());
+
+            if (staffUser.getFcmToken() != null && !staffUser.getFcmToken().isEmpty()) {
+                try {
+                    this.fcmService.sendPushNotification(staffUser.getFcmToken(), staffNotiTitle, staffNotiBody);
+                } catch (Exception e) {
+                    log.error("FCM Staff Cancel Push failed: {}", e.getMessage());
+                }
+            }
+        }
+
         BookingResponse response = this.mapToResponse(savedBooking);
-
-        log.info("--- cancelBookingByCustomer process successfully finished for ID: {} ---", id);
+        log.info("--- cancelBookingByCustomer process successfully finished ---");
         return response;
     }
 

@@ -202,4 +202,42 @@ public class CustomerManagementServiceImpl implements CustomerManagementService 
                     .build();
         });
     }
+    // =========================================================================
+    // 🌟 [ADDED] GET BLOCKED CUSTOMERS LIST
+    // =========================================================================
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CustomerSummaryResponse> getBlockedCustomerList(String search, int page, int size) {
+        // Blocked ဖြစ်သွားတဲ့ အချိန်အလိုက် နောက်ဆုံးလူကို အပေါ်ဆုံးကပြရန် Sort လုပ်ခြင်း
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<User> blockedCustomers = userRepository.searchBlockedCustomers(search, pageable);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d.M.yyyy").withZone(ZoneId.of("Asia/Yangon"));
+
+        return blockedCustomers.map(user -> CustomerSummaryResponse.builder()
+                .id(user.getId())
+                .customerId(user.getCode())
+                .customerName(user.getFullName())
+                .profilePicture(user.getProfilePicture())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhone())
+                .gender(user.getGender())
+                .joinDate(user.getCreatedAt() != null ? formatter.format(user.getCreatedAt()) : "-")
+                .bookingCount(user.getBookings() != null ? user.getBookings().size() : 0)
+                .build());
+    }
+
+    // =========================================================================
+    // 🌟 [ADDED] TOGGLE CUSTOMER BLOCK/UNBLOCK STATUS
+    // =========================================================================
+    @Override
+    @Transactional
+    public void toggleCustomerBlockStatus(Long customerId) {
+        User user = userRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with ID: " + customerId));
+
+        // enabled status ကို လက်ရှိတန်ဖိုး၏ ဆန့်ကျင်ဘက်သို့ Toggle လုပ်ပါမည် (true -> false, false -> true)
+        user.setEnabled(!user.isEnabled());
+        userRepository.save(user);
+    }
 }

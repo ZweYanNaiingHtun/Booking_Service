@@ -11,17 +11,34 @@ import java.util.List;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    // CreatedAt Descending ဖြင့် နောက်ဆုံးပို့သမျှ အပေါ်ဆုံးကပြရန်
+
+    // 🌟 [Admin Framework တွက်] Target Audience တစ်ခုလုံးရဲ့ သမိုင်းကြောင်းအားလုံးကို ဆွဲထုတ်ရန်
     List<Notification> findByTargetAudienceOrderByCreatedAtDesc(TargetAudience targetAudience);
 
-    // အမျိုးအစားအလိုက် သီးသန့်ဆွဲထုတ်ခြင်း (Booking သို့မဟုတ် Promotion Tab အတွက်)
+    // 🌟 Specific User အတွက် Type အလိုက် Noti Filter လုပ်ရန်
+    List<Notification> findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
+            TargetAudience targetAudience,
+            NotificationType type,
+            Long userId
+    );
+
+    // အမျိုးအစားအလိုက် သီးသန့်ဆွဲထုတ်ခြင်း
     List<Notification> findByTargetAudienceAndTypeOrderByCreatedAtDesc(TargetAudience audience, NotificationType type);
 
-    // 🌟 မိမိအတွက် သီးသန့်ပို့ထားသော notification နှင့် အားလုံးအတွက် ပို့ထားသော global notification များကို တွဲထုတ်ရန်
-    @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience AND (n.user.id = :userId OR n.user IS NULL) ORDER BY n.createdAt DESC")
-    List<Notification> findByAudienceAndUserId(@Param("audience") TargetAudience audience, @Param("userId") Long userId);
-
-    // 🌟 Tab လိုက် စစ်ထုတ်သည့်အခါ သုံးရန်
-    @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience AND n.type = :type AND (n.user.id = :userId OR n.user IS NULL) ORDER BY n.createdAt DESC")
-    List<Notification> findByAudienceAndTypeAndUserId(@Param("audience") TargetAudience audience, @Param("type") NotificationType type, @Param("userId") Long userId);
+    // 🌟 Customer/Staff Mobile App Inbox အတွက် Personal + Public Broadcast ခွဲထုတ်ပေးမည့် Query
+    @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience " +
+            "AND (" +
+            "  n.type IN (com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, " +
+            "             com.codingproject.digitalbase.enums.NotificationType.PROMOTION) " +
+            "  OR " +
+            "  (n.type IN (com.codingproject.digitalbase.enums.NotificationType.BOOKING, " +
+            "              com.codingproject.digitalbase.enums.NotificationType.REMINDER, " +
+            "              com.codingproject.digitalbase.enums.NotificationType.ALERT) " +
+            "   AND n.user.id = :userId)" +
+            ") " +
+            "ORDER BY n.createdAt DESC")
+    List<Notification> findNotificationsForUser(
+            @Param("userId") Long userId,
+            @Param("audience") TargetAudience audience
+    );
 }
