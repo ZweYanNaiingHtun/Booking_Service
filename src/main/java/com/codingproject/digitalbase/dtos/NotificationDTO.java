@@ -4,16 +4,22 @@ import com.codingproject.digitalbase.enums.NotificationType;
 import com.codingproject.digitalbase.enums.TargetAudience;
 import lombok.*;
 import java.time.Instant;
+import java.util.Map;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class NotificationDTO {
     private Long id;
     private String title;
     private String message;
     private String imageUrl;
-    private NotificationType type;
+    private NotificationType type; // BOOKING, PROMOTION, ANNOUNCEMENT, ALERT, REVIEW
     private TargetAudience targetAudience;
     private boolean isRead;
     private Instant createdAt;
+
+    // 🌟 နေရာစုံ၊ Type စုံအတွက် Dynamic Data အားလုံးကို သိမ်းမည့် နေရာသစ်
+    private Map<String, Object> metadata;
 }

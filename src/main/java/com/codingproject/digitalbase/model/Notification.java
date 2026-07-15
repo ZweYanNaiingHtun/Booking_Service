@@ -2,12 +2,14 @@ package com.codingproject.digitalbase.model;
 
 import com.codingproject.digitalbase.enums.NotificationType;
 import com.codingproject.digitalbase.enums.TargetAudience;
+import com.codingproject.digitalbase.utils.JsonToMapConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 
 import java.sql.Types;
 import java.time.Instant;
+import java.util.Map;
 
 @Entity
 @Table(name = "notifications")
@@ -48,6 +50,12 @@ public class Notification {
 
     @Column(nullable = false, name = "created_at")
     private Instant createdAt;
+
+    @Lob
+    @JdbcTypeCode(Types.LONGVARCHAR)
+    @Convert(converter = JsonToMapConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private Map<String, Object> metadata = new java.util.HashMap<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")

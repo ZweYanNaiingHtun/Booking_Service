@@ -4,7 +4,12 @@ import com.codingproject.digitalbase.dtos.NotificationDTO;
 import com.codingproject.digitalbase.dtos.NotificationRequest;
 import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.service.NotificationService;
+
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -12,7 +17,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -28,38 +32,77 @@ public class NotificationController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    // 🖥️ ၂။ [Admin Dashboard တွက်] Get ALL Staff Notifications History (Global View)
+    // 🖥️ ၂။ [Admin Dashboard တွက်] Get ALL Staff Notifications History (Global View with Pagination)
     @GetMapping("/admin/staff")
-    public ResponseEntity<List<NotificationDTO>> getAllStaffNotificationsForAdmin() {
-        // 🌟 Fix: Email သတ်မှတ်ချက်မလိုဘဲ သမိုင်းကြောင်း Noti အားလုံးကို Dashboard ပေါ်တင်ပေးပါမည်
-        List<NotificationDTO> notifications = notificationService.getAllNotificationsByAudience(TargetAudience.STAFF);
+    public ResponseEntity<Page<NotificationDTO>> getAllStaffNotificationsForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<NotificationDTO> notifications = notificationService.getAllNotificationsByAudience(TargetAudience.STAFF, pageable);
         return ResponseEntity.ok(notifications);
     }
 
-    // 🖥️ ၃။ [Admin Dashboard တွက်] Get ALL Customer Notifications History (Global View)
+    // 🖥️ ၃။ [Admin Dashboard တွက်] Get ALL Customer Notifications History (Global View with Pagination)
     @GetMapping("/admin/customer")
-    public ResponseEntity<List<NotificationDTO>> getAllCustomerNotificationsForAdmin() {
-        // 🌟 Fix: Customer တစ်ခုလုံးထံ ပို့ခဲ့သမျှ Noti အားလုံးကို ပြသပါမည်
-        List<NotificationDTO> notifications = notificationService.getAllNotificationsByAudience(TargetAudience.CUSTOMER);
+    public ResponseEntity<Page<NotificationDTO>> getAllCustomerNotificationsForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<NotificationDTO> notifications = notificationService.getAllNotificationsByAudience(TargetAudience.CUSTOMER, pageable);
         return ResponseEntity.ok(notifications);
     }
 
-    // 📱 ၄။ [Customer Mobile App တွက်] Get Personalized Customer Inbox
+    // 📱 ၄။ [Customer Mobile App တွက်] Get Personalized Customer Inbox (🌟 Pagination စနစ်ဖြင့် ပြင်ဆင်ပြီး)
     @GetMapping("/customer")
-    public ResponseEntity<List<NotificationDTO>> getCustomerNotifications(
+    public ResponseEntity<Page<NotificationDTO>> getCustomerNotifications(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) String tab) {
-        List<NotificationDTO> notifications = notificationService.getCustomerNotificationsByTab(userDetails.getUsername(), tab);
+            @RequestParam(required = false) String tab,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<NotificationDTO> notifications = notificationService.getCustomerNotificationsByTab(userDetails.getUsername(), tab, pageable);
         return ResponseEntity.ok(notifications);
     }
 
-    // 📱 ၅။ [Staff Mobile App တွက်] Get Personalized Staff Inbox (🌟 Endpoint အသစ်)
+    // 📱 ၅။ [Staff Mobile App တွက်] Get Personalized Staff Inbox (🌟 Pagination စနစ်ဖြင့် ပြင်ဆင်ပြီး)
     @GetMapping("/staff")
-    public ResponseEntity<List<NotificationDTO>> getStaffNotifications(
+    public ResponseEntity<Page<NotificationDTO>> getStaffNotifications(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam(required = false) String tab) {
-        // 🌟 Fix: ဝန်ထမ်းတစ်ဦးချင်းစီအလိုက် တာဝန်ကျသော Booking/Alert သီးသန့်များကို စစ်ထုတ်ကြည့်ရန်
-        List<NotificationDTO> notifications = notificationService.getStaffNotificationsByTab(userDetails.getUsername(), tab);
+            @RequestParam(required = false) String tab,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<NotificationDTO> notifications = notificationService.getStaffNotificationsByTab(userDetails.getUsername(), tab, pageable);
         return ResponseEntity.ok(notifications);
     }
 

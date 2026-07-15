@@ -512,12 +512,22 @@ public class BookingServiceImpl implements BookingService {
         Booking savedBooking = bookingRepository.save(booking);
         log.info("Booking ID: {} status successfully updated to CONFIRMED.", id);
 
+        String serviceName = savedBooking.getBusinessService().getName();
+        String bookingDateStr = savedBooking.getBookingDate().toString();
+
         // ==========================================
         // 🌟 1. CUSTOMER NOTIFICATION
         // ==========================================
         User customer = savedBooking.getCustomer();
         String customerNotiTitle = "Booking Confirmed! 🎉";
-        String customerNotiBody = "Your booking for " + savedBooking.getBusinessService().getName() + " has been successfully confirmed with Staff: " + finalStaffProfile.getUser().getFullName();
+        String customerNotiBody = "Your booking for " + serviceName + " has been successfully confirmed with Staff: " + finalStaffProfile.getUser().getFullName();
+
+        // Customer အတွက် Metadata payload ပြင်ဆင်ခြင်း
+        java.util.Map<String, Object> customerMetadata = new java.util.HashMap<>();
+        customerMetadata.put("serviceName", serviceName);
+        customerMetadata.put("bookingDate", bookingDateStr);
+        customerMetadata.put("bookingStatus", "CONFIRMED");
+        customerMetadata.put("staffName", finalStaffProfile.getUser().getFullName());
 
         Notification customerDbNotification = Notification.builder()
                 .title(customerNotiTitle)
@@ -525,6 +535,7 @@ public class BookingServiceImpl implements BookingService {
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
                 .user(customer)
+                .metadata(customerMetadata) // 🚀 Metadata တိုက်ရိုက်ထည့်သွင်းခြင်း
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
@@ -539,18 +550,26 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // ==========================================
-        // 🌟 2. STAFF NOTIFICATION (ဖြည့်စွက်ချက်အသစ်)
+        // 🌟 2. STAFF NOTIFICATION
         // ==========================================
         User staffUser = finalStaffProfile.getUser();
         String staffNotiTitle = "New Booking Assigned! 📅";
-        String staffNotiBody = "You have been assigned to a new booking: " + savedBooking.getBusinessService().getName() + " on " + savedBooking.getBookingDate();
+        String staffNotiBody = "You have been assigned to a new booking: " + serviceName + " on " + savedBooking.getBookingDate();
+
+        // Staff အတွက် Metadata payload ပြင်ဆင်ခြင်း
+        java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
+        staffMetadata.put("serviceName", serviceName);
+        staffMetadata.put("bookingDate", bookingDateStr);
+        staffMetadata.put("bookingStatus", "CONFIRMED");
+        staffMetadata.put("customerName", customer.getFullName());
 
         Notification staffDbNotification = Notification.builder()
                 .title(staffNotiTitle)
                 .message(staffNotiBody)
                 .type(NotificationType.BOOKING)
-                .targetAudience(TargetAudience.STAFF) // 👈 TargetAudience.STAFF ကို သုံးထားပါတယ် ဆရာကြီး
+                .targetAudience(TargetAudience.STAFF)
                 .user(staffUser)
+                .metadata(staffMetadata) // 🚀 Metadata တိုက်ရိုက်ထည့်သွင်းခြင်း
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
@@ -595,12 +614,10 @@ public class BookingServiceImpl implements BookingService {
             throw new BadRequestException("Only PENDING or CONFIRMED bookings can be cancelled.");
         }
 
-        // 🌟 ပြင်ဆင်ချက်- Noti ပို့ရန်အတွက် တာဝန်ကျ သို့မဟုတ် တောင်းဆိုထားသော Staff အား ကြိုတင် သိမ်းဆည်းထားခြင်း
         StaffProfile staffToNotify = booking.getAssignedStaff() != null
                 ? booking.getAssignedStaff()
                 : booking.getRequestedStaff();
 
-        // Staff Assignment ဖျက်သိမ်းခြင်း
         if (booking.getStaffAssignment() != null) {
             this.staffAssignmentRepository.delete(booking.getStaffAssignment());
             booking.setStaffAssignment(null);
@@ -617,15 +634,24 @@ public class BookingServiceImpl implements BookingService {
         Booking savedBooking = this.bookingRepository.save(booking);
         log.info("Booking ID: {} updated to CANCELLED.", id);
 
+        String serviceName = savedBooking.getBusinessService().getName();
+        String bookingDateStr = savedBooking.getBookingDate().toString();
+
         // ==========================================
         // 🌟 1. CUSTOMER NOTIFICATION
         // ==========================================
         User customer = savedBooking.getCustomer();
         String customerNotiTitle = "Booking Rejected ❌";
-        String customerNotiBody = "Sorry, your booking for " + savedBooking.getBusinessService().getName() + " has been rejected by the admin.";
+        String customerNotiBody = "Sorry, your booking for " + serviceName + " has been rejected by the admin.";
         if (reason != null && !reason.isBlank()) {
             customerNotiBody += " Reason: " + reason;
         }
+
+        java.util.Map<String, Object> customerMetadata = new java.util.HashMap<>();
+        customerMetadata.put("serviceName", serviceName);
+        customerMetadata.put("bookingDate", bookingDateStr);
+        customerMetadata.put("bookingStatus", "CANCELLED");
+        customerMetadata.put("reason", reason != null ? reason : "");
 
         Notification customerDbNotification = Notification.builder()
                 .title(customerNotiTitle)
@@ -633,6 +659,7 @@ public class BookingServiceImpl implements BookingService {
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
                 .user(customer)
+                .metadata(customerMetadata) // 🚀 Metadata တိုက်ရိုက်ထည့်သွင်းခြင်း
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
@@ -647,12 +674,18 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // ==========================================
-        // 🌟 2. STAFF NOTIFICATION (ဖြည့်စွက်ချက်အသစ်)
+        // 🌟 2. STAFF NOTIFICATION
         // ==========================================
         if (staffToNotify != null) {
             User staffUser = staffToNotify.getUser();
             String staffNotiTitle = "Booking Cancelled 🔴";
-            String staffNotiBody = "The booking for " + savedBooking.getBusinessService().getName() + " on " + savedBooking.getBookingDate() + " has been cancelled by Admin.";
+            String staffNotiBody = "The booking for " + serviceName + " on " + savedBooking.getBookingDate() + " has been cancelled by Admin.";
+
+            java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
+            staffMetadata.put("serviceName", serviceName);
+            staffMetadata.put("bookingDate", bookingDateStr);
+            staffMetadata.put("bookingStatus", "CANCELLED");
+            staffMetadata.put("cancelledBy", "ADMIN");
 
             Notification staffDbNotification = Notification.builder()
                     .title(staffNotiTitle)
@@ -660,6 +693,7 @@ public class BookingServiceImpl implements BookingService {
                     .type(NotificationType.BOOKING)
                     .targetAudience(TargetAudience.STAFF)
                     .user(staffUser)
+                    .metadata(staffMetadata) // 🚀 Metadata တိုက်ရိုက်ထည့်သွင်းခြင်း
                     .isRead(false)
                     .createdAt(Instant.now())
                     .build();
@@ -703,7 +737,6 @@ public class BookingServiceImpl implements BookingService {
             throw new BadRequestException("Only PENDING or CONFIRMED bookings can be cancelled.");
         }
 
-        // 🌟 ပြင်ဆင်ချက်- Noti ပို့ရန်အတွက် တာဝန်ကျ သို့မဟုတ် တောင်းဆိုထားသော Staff အား ကြိုတင် သိမ်းဆည်းထားခြင်း
         StaffProfile staffToNotify = booking.getAssignedStaff() != null
                 ? booking.getAssignedStaff()
                 : booking.getRequestedStaff();
@@ -720,12 +753,20 @@ public class BookingServiceImpl implements BookingService {
         Booking savedBooking = this.bookingRepository.save(booking);
         log.info("Booking ID: {} successfully cancelled by Customer.", id);
 
+        String serviceName = savedBooking.getBusinessService().getName();
+        String bookingDateStr = savedBooking.getBookingDate().toString();
+
         // ==========================================
         // 🌟 1. CUSTOMER NOTIFICATION
         // ==========================================
         User customer = savedBooking.getCustomer();
         String customerNotiTitle = "Booking Cancelled 🔴";
-        String customerNotiBody = "Your appointment for " + savedBooking.getBusinessService().getName() + " has been successfully cancelled.";
+        String customerNotiBody = "Your appointment for " + serviceName + " has been successfully cancelled.";
+
+        java.util.Map<String, Object> customerMetadata = new java.util.HashMap<>();
+        customerMetadata.put("serviceName", serviceName);
+        customerMetadata.put("bookingDate", bookingDateStr);
+        customerMetadata.put("bookingStatus", "CANCELLED");
 
         Notification customerDbNotification = Notification.builder()
                 .title(customerNotiTitle)
@@ -733,18 +774,26 @@ public class BookingServiceImpl implements BookingService {
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
                 .user(customer)
+                .metadata(customerMetadata) // 🚀 Metadata တိုက်ရိုက်ထည့်သွင်းခြင်း
                 .isRead(false)
                 .createdAt(Instant.now())
                 .build();
         this.notificationRepository.save(customerDbNotification);
 
         // ==========================================
-        // 🌟 2. STAFF NOTIFICATION (ဖြည့်စွက်ချက်အသစ်)
+        // 🌟 2. STAFF NOTIFICATION
         // ==========================================
         if (staffToNotify != null) {
             User staffUser = staffToNotify.getUser();
             String staffNotiTitle = "Booking Cancelled by Customer 🔴";
-            String staffNotiBody = "The booking for " + savedBooking.getBusinessService().getName() + " on " + savedBooking.getBookingDate() + " has been cancelled by the customer.";
+            String staffNotiBody = "The booking for " + serviceName + " on " + savedBooking.getBookingDate() + " has been cancelled by the customer.";
+
+            java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
+            staffMetadata.put("serviceName", serviceName);
+            staffMetadata.put("bookingDate", bookingDateStr);
+            staffMetadata.put("bookingStatus", "CANCELLED");
+            staffMetadata.put("cancelledBy", "CUSTOMER");
+            staffMetadata.put("customerName", customer.getFullName());
 
             Notification staffDbNotification = Notification.builder()
                     .title(staffNotiTitle)
@@ -752,6 +801,7 @@ public class BookingServiceImpl implements BookingService {
                     .type(NotificationType.BOOKING)
                     .targetAudience(TargetAudience.STAFF)
                     .user(staffUser)
+                    .metadata(staffMetadata) // 🚀 Metadata တိုက်ရိုက်ထည့်သွင်းခြင်း
                     .isRead(false)
                     .createdAt(Instant.now())
                     .build();

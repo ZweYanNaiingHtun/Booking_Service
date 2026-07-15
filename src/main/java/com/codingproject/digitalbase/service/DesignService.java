@@ -16,5 +16,6 @@ public interface DesignService {
 
     DesignResponseDto uploadDesign(String title, MultipartFile file) throws IOException;
 
-
+    // 🌟 စနစ်ထဲမှ Design ပုံအား အပြီးတိုင်ဖျက်ရန်
+    void deleteDesign(Long id);
 }

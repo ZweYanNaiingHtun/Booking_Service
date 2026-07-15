@@ -23,12 +23,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DesignServiceImpl implements DesignService {
     private final DesignRepository designRepository;
     private final UserRepository userRepository;
@@ -131,5 +133,33 @@ public class DesignServiceImpl implements DesignService {
                 .isFavorited(true)
                 .build()
         ).toList();
+    }
+
+    @Override
+    @Transactional
+    public void deleteDesign(Long id) {
+        Design design = designRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Design not found with id: " + id));
+
+        // ၁။ Server Storage ထဲရှိ ရုပ်ပိုင်းဆိုင်ရာ ဖိုင်အစစ်အား လိုက်လံရှာဖွေပြီး ဖျက်ဆီးခြင်း
+        if (design.getImageUrl() != null) {
+            try {
+                // "/uploads/designs/uuid.jpg" မှ ဖိုင်နာမည် သီးသန့်ထုတ်ယူခြင်း
+                String fileName = design.getImageUrl().replace("/uploads/designs/", "");
+                Path filePath = Paths.get(UPLOAD_DIR).resolve(fileName);
+
+                // ဖိုင်ရှိနေပါက အပြီးတိုင် ရှင်းလင်းခြင်း
+                boolean deleted = Files.deleteIfExists(filePath);
+                if (deleted) {
+                    log.info("Physical image file deleted successfully: {}", fileName);
+                }
+            } catch (IOException e) {
+                log.error("Failed to delete physical design file from storage: {}", e.getMessage());
+            }
+        }
+
+        // ၂။ Database ထဲမှ Data Row အား ဖျက်သိမ်းခြင်း
+        designRepository.delete(design);
+        log.info("Design ID: {} has been completely removed from database by Admin.", id);
     }
 }

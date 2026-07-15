@@ -10,8 +10,11 @@ import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.model.User;
 import com.codingproject.digitalbase.repository.NotificationRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,9 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
     private final Path uploadPath = Paths.get("uploads/notifications/");
 
     @Override
@@ -43,14 +46,21 @@ public class NotificationServiceImpl implements NotificationService {
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
                 }
-
                 String fileName = UUID.randomUUID().toString() + "_" + image.getOriginalFilename();
                 Path filePath = uploadPath.resolve(fileName);
                 Files.copy(image.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
                 relativeImagePath = "/uploads/notifications/" + fileName;
             } catch (IOException e) {
                 throw new BadRequestException("Failed to upload notification image: " + e.getMessage());
+            }
+        }
+
+        java.util.Map<String, Object> metadataMap = new java.util.HashMap<>();
+        if (request.getMetadata() != null && !request.getMetadata().trim().isEmpty()) {
+            try {
+                metadataMap = objectMapper.readValue(request.getMetadata(), new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, Object>>() {});
+            } catch (IOException e) {
+                log.error("Failed to parse metadata JSON from request", e);
             }
         }
 
@@ -60,6 +70,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .type(request.getType())
                 .targetAudience(request.getTargetAudience())
                 .imageUrl(relativeImagePath)
+                .metadata(metadataMap)
                 .createdAt(Instant.now())
                 .build();
 
@@ -68,59 +79,58 @@ public class NotificationServiceImpl implements NotificationService {
         return mapToDTO(saved);
     }
 
-    // 🖥️ [Admin Panel သီးသန့်] Target Audience အလိုက် သမိုင်းကြောင်းအားလုံးကို စစ်ထုတ်ခြင်းမရှိဘဲ ဆွဲထုတ်ပြမည့် Method
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationDTO> getAllNotificationsByAudience(TargetAudience audience) {
-        log.info("Admin UI: Fetching all global notification history for audience: {}", audience);
-        List<Notification> notifications = notificationRepository.findByTargetAudienceOrderByCreatedAtDesc(audience);
-        return notifications.stream().map(this::mapToDTO).collect(Collectors.toList());
+    public Page<NotificationDTO> getAllNotificationsByAudience(TargetAudience audience, Pageable pageable) {
+        log.info("Admin UI: Fetching paged global notification history for audience: {}", audience);
+        Page<Notification> notificationPage = notificationRepository.findByTargetAudience(audience, pageable);
+        return notificationPage.map(this::mapToDTO);
     }
 
-    // 📱 [Customer Mobile App တွက်] Tab အလိုက် ကိုယ်ပိုင်သီးသန့် Inbox Filter မက်သတ်
+    // 📱 [Customer Mobile App တွက်] 🌟 Pagination စနစ်ဖြင့် အဆင့်မြှင့်တင်ထားသော Inbox Filter
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationDTO> getCustomerNotificationsByTab(String email, String tab) {
+    public Page<NotificationDTO> getCustomerNotificationsByTab(String email, String tab, Pageable pageable) {
         User customerUser = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found."));
 
         TargetAudience audience = TargetAudience.CUSTOMER;
-        List<Notification> results;
+        Page<Notification> results;
 
         if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience);
+            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience, pageable);
         } else if ("booking".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
-                    audience, NotificationType.BOOKING, customerUser.getId());
+            results = notificationRepository.findByTargetAudienceAndTypeAndUserId(
+                    audience, NotificationType.BOOKING, customerUser.getId(), pageable);
         } else if ("promotion".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndTypeOrderByCreatedAtDesc(audience, NotificationType.PROMOTION);
+            results = notificationRepository.findByTargetAudienceAndType(audience, NotificationType.PROMOTION, pageable);
         } else {
-            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience);
+            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience, pageable);
         }
 
-        return results.stream().map(this::mapToDTO).collect(Collectors.toList());
+        return results.map(this::mapToDTO);
     }
 
-    // 📱 [Staff Mobile App တွက်] Tab အလိုက် ကိုယ်ပိုင်သီးသန့် Inbox Filter မက်သတ် (🌟 ဖြည့်စွက်ချက်အသစ်)
+    // 📱 [Staff Mobile App တွက်] 🌟 Pagination စနစ်ဖြင့် အဆင့်မြှင့်တင်ထားသော Inbox Filter
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationDTO> getStaffNotificationsByTab(String email, String tab) {
+    public Page<NotificationDTO> getStaffNotificationsByTab(String email, String tab, Pageable pageable) {
         User staffUser = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff member not found."));
 
         TargetAudience audience = TargetAudience.STAFF;
-        List<Notification> results;
+        Page<Notification> results;
 
         if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab) || "incoming".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience);
+            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience, pageable);
         } else if ("booking".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
-                    audience, NotificationType.BOOKING, staffUser.getId());
+            results = notificationRepository.findByTargetAudienceAndTypeAndUserId(
+                    audience, NotificationType.BOOKING, staffUser.getId(), pageable);
         } else {
-            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience);
+            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience, pageable);
         }
 
-        return results.stream().map(this::mapToDTO).collect(Collectors.toList());
+        return results.map(this::mapToDTO);
     }
 
     @Override
@@ -156,6 +166,25 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.delete(notification);
     }
 
+    @Override
+    @Transactional
+    public void sendSystemNotification(String title, String message, NotificationType type,
+                                       TargetAudience audience, User targetUser, Map<String, Object> metadata) {
+        Notification notification = Notification.builder()
+                .title(title)
+                .message(message)
+                .type(type)
+                .targetAudience(audience)
+                .user(targetUser)
+                .metadata(metadata)
+                .createdAt(Instant.now())
+                .isRead(false)
+                .build();
+
+        notificationRepository.save(notification);
+        log.info("🚀 Auto-Notification triggered for {} ({})", targetUser.getEmail(), audience);
+    }
+
     private NotificationDTO mapToDTO(Notification entity) {
         return NotificationDTO.builder()
                 .id(entity.getId())
@@ -166,6 +195,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .targetAudience(entity.getTargetAudience())
                 .isRead(entity.isRead())
                 .createdAt(entity.getCreatedAt())
+                .metadata(entity.getMetadata())
                 .build();
     }
 }

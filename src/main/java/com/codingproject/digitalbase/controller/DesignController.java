@@ -15,12 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -33,7 +28,7 @@ public class DesignController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('SUPER_ADMIN')") // Admin တစ်ဦးတည်းသာ ပုံတင်ခွင့်ပြုမည်
     public ResponseEntity<DesignResponseDto> uploadDesign(
-            @RequestParam("title") String title,
+            @RequestParam(value = "title",required = false ) String title,
             @RequestParam("designImage") MultipartFile file) throws IOException {
 
         // ဖိုင်အလွတ်ကြီး ဖြစ်နေပါက Error သတ်မှတ်မည်
@@ -42,6 +37,14 @@ public class DesignController {
         }
 
         return ResponseEntity.ok(designService.uploadDesign(title, file));
+    }
+
+    // 🗑️ [DELETE] Admin များ Design အား ပြန်လည်ဖျက်သိမ်းရန် API (🌟 Endpoint အသစ်)
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')") // Admin တစ်ဦးတည်းသာ ဖျက်ခွင့်ပြုမည်
+    public ResponseEntity<Void> deleteDesign(@PathVariable Long id) {
+        designService.deleteDesign(id);
+        return ResponseEntity.noContent().build(); // Success ဖြစ်ပါက 204 No Content ပြန်မည်
     }
 
     @GetMapping({"/trending"})
