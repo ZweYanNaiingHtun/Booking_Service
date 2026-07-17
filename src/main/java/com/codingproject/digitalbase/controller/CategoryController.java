@@ -11,6 +11,8 @@ import com.codingproject.digitalbase.dtos.CategoryWithServicesResponse;
 import com.codingproject.digitalbase.model.Category;
 import com.codingproject.digitalbase.service.CategoryService;
 import java.util.List;
+import java.util.Map;
+
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -62,10 +64,19 @@ public class CategoryController {
         return ResponseEntity.ok(response);
     }
 
+    // 🌟 ၁။ Category အား ပိတ်ပစ်မည့် Soft Delete Endpoint
     @DeleteMapping({"/{id}"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
-    public ResponseEntity<String> deleteCategory(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> deleteCategory(@PathVariable Long id) {
         this.categoryService.deleteCategory(id);
-        return ResponseEntity.ok("Category deleted successfully");
+        return ResponseEntity.ok(Map.of("message", "Category disabled successfully"));
+    }
+
+    // 🌟 ၂။ Category အား ပြန်လည်ဖွင့်ပေးမည့် Restore Endpoint (အသစ်)
+    @PutMapping({"/{id}/restore"})
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> restoreCategory(@PathVariable Long id) {
+        this.categoryService.restoreCategory(id);
+        return ResponseEntity.ok(Map.of("message", "Category restored successfully"));
     }
 }

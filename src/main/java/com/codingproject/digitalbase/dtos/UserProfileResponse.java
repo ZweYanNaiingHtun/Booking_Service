@@ -16,4 +16,6 @@ public class UserProfileResponse {
     private String profilePicture;
     // 🌟 🌟 🌟 Admin, Staff, Customer Role များကို Dynamic ပြသရန် ထပ်တိုးလိုက်ပါသည်
     private String role;
+    private Double rating;                 // Staff ၏ ပျမ်းမျှ ကြယ်ပွင့်နှုန်း
+    private Long completedBookingsCount;
 }

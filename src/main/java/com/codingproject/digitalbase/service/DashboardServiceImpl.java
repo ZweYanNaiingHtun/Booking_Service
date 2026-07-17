@@ -44,39 +44,78 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate targetDate = resolveTargetDate(month, year);
         List<Booking> allBookings = this.bookingRepository.findAll();
 
+        // ၁။ သတ်မှတ်ထားသော လနှင့် နှစ်အလိုက် Completed ဖြစ်သွားသော Booking များကို စစ်ထုတ်ခြင်း
         List<Booking> targetedMonthBookings = allBookings.stream()
                 .filter(b -> b.getBookingDate() != null)
                 .filter(b -> {
                     LocalDate bDate = b.getBookingDate().atZone(yangonZone).toLocalDate();
                     return bDate.getMonthValue() == targetDate.getMonthValue() && bDate.getYear() == targetDate.getYear();
                 })
-                .filter(b -> b.getStatus() == BookingStatus.COMPLETED) // Stats နှင့် ကိုက်ညီစေရန်
+                .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                .filter(b -> b.getBusinessService() != null)
                 .toList();
 
-        long totalServiceCount = targetedMonthBookings.stream()
-                .filter(b -> b.getBusinessService() != null)
-                .count();
+        // ၂။ သတ်မှတ်ထားသော လအတွက် စုစုပေါင်း ရရှိသော ဝင်ငွေ (Total Monthly Revenue) အား တွက်ချက်ခြင်း
+        double totalMonthlyRevenue = targetedMonthBookings.stream()
+                .mapToDouble(b -> b.getBusinessService().getPrice() != null
+                        ? b.getBusinessService().getPrice().doubleValue()
+                        : 0.0)
+                .sum();
 
-        return targetedMonthBookings.stream()
-                .filter(b -> b.getBusinessService() != null)
-                .collect(Collectors.groupingBy(
-                        b -> b.getBusinessService().getName(),
-                        Collectors.counting()
-                ))
-                .entrySet().stream()
-                .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
-                .limit(5)
+        // 🌟 ၃။ တွက်ချက်မှုအသစ်: လစဉ် စုစုပေါင်း Booking အရေအတွက် (Total Monthly Bookings Count)
+        int totalMonthlyBookings = targetedMonthBookings.size();
+
+        // ၄။ Business Service အလိုက် Grouping ဖွဲ့ပြီး Detail Stats များ တွက်ချက်ခြင်း
+        Map<BusinessService, List<Booking>> bookingsByService = targetedMonthBookings.stream()
+                .collect(Collectors.groupingBy(Booking::getBusinessService));
+
+        return bookingsByService.entrySet().stream()
                 .map(entry -> {
-                    int count = entry.getValue().intValue();
-                    double percentage = totalServiceCount > 0
-                            ? ((double) count / totalServiceCount) * 100
+                    BusinessService service = entry.getKey();
+                    List<Booking> serviceBookings = entry.getValue();
+
+                    // 🎯 Walk-in Booking များကို ရေတွက်ခြင်း (Customer Code: "CU-WALKIN")
+                    int walkInCount = (int) serviceBookings.stream()
+                            .filter(b -> b.getCustomer() != null && "CU-WALKIN".equals(b.getCustomer().getCode()))
+                            .count();
+
+                    // 🎯 Normal Appointment များကို ရေတွက်ခြင်း (Total - Walk-in)
+                    int totalCount = serviceBookings.size();
+                    int appointmentCount = totalCount - walkInCount;
+
+                    // 🎯 BigDecimal မှ doubleValue() သို့ ပြောင်းလဲ၍ စုစုပေါင်း Service ဝင်ငွေ တွက်ချက်ခြင်း
+                    double serviceRevenue = serviceBookings.stream()
+                            .mapToDouble(b -> b.getBusinessService().getPrice() != null
+                                    ? b.getBusinessService().getPrice().doubleValue()
+                                    : 0.0)
+                            .sum();
+
+                    // 🎯 ဝင်ငွေ ရာခိုင်နှုန်း ရှာဖွေခြင်း (% of Revenue)
+                    double revenuePercentage = totalMonthlyRevenue > 0
+                            ? (serviceRevenue / totalMonthlyRevenue) * 100
                             : 0.0;
+
+                    // 🎯 🌟 တွက်ချက်မှုအသစ်: အရေအတွက် ရာခိုင်နှုန်း ရှာဖွေခြင်း (% of Bookings for Pie Chart)
+                    double countPercentage = totalMonthlyBookings > 0
+                            ? ((double) totalCount / totalMonthlyBookings) * 100
+                            : 0.0;
+
+                    double singlePrice = service.getPrice() != null ? service.getPrice().doubleValue() : 0.0;
+
                     return TopServiceResponse.builder()
-                            .serviceName(entry.getKey())
-                            .count(count)
-                            .percentage(Math.round(percentage * 10.0) / 10.0)
+                            .serviceName(service.getName())
+                            .appointment(appointmentCount)
+                            .walkIn(walkInCount)
+                            .price(singlePrice)
+                            .revenue(serviceRevenue)
+                            .totalCount(totalCount)
+                            .revenuePercentage(Math.round(revenuePercentage * 10.0) / 10.0) // ဒသမ ၁ နေရာထိ ဖြတ်ခြင်း
+                            .countPercentage(Math.round(countPercentage * 10.0) / 10.0)     // 🌟 ဒသမ ၁ နေရာထိ ဖြတ်ခြင်း
                             .build();
                 })
+                // ၅။ Booked Count အများဆုံး (Total Count Descending) ဖြင့် Sort စီပြီး Top 5 ကို ဆွဲထုတ်ခြင်း
+                .sorted((s1, s2) -> Integer.compare(s2.getTotalCount(), s1.getTotalCount()))
+                .limit(5)
                 .toList();
     }
 

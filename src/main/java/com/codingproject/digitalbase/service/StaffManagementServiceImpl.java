@@ -66,11 +66,22 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         } else if (this.userRepository.existsByPhone(request.getPhoneNumber())) {
             throw new BadRequestException("Phone number is already registered");
         } else {
-            Role staffRole = (Role)this.roleRepository.findByRole(RoleName.STAFF).orElseThrow(() -> new ResourceNotFoundException("STAFF role not found!"));
+            Role staffRole = this.roleRepository.findByRole(RoleName.STAFF).orElseThrow(() -> new ResourceNotFoundException("STAFF role not found!"));
             String temporaryPassword = this.generateStrongPassword();
             String staffCode = this.generateUserCode(RoleName.STAFF);
             String imageFileName = "default-profile.png";
-            User staff = User.builder().fullName(request.getFullName()).code(staffCode).email(request.getEmail()).password(this.passwordEncoder.encode(temporaryPassword)).phone(request.getPhoneNumber()).dateOfBirth(request.getDateOfBirth()).profilePicture(imageFileName).roles(new HashSet(Collections.singleton(staffRole))).enabled(true).createdAt(Instant.now()).build();
+            User staff = User
+                    .builder()
+                    .fullName(request.getFullName())
+                    .code(staffCode)
+                    .email(request.getEmail())
+                    .password(this.passwordEncoder.encode(temporaryPassword))
+                    .phone(request.getPhoneNumber())
+                    .dateOfBirth(request.getDateOfBirth())
+                    .profilePicture(imageFileName)
+                    .roles(new HashSet(Collections.singleton(staffRole)))
+                    .enabled(true)
+                    .createdAt(Instant.now()).build();
             List<BusinessService> services = Collections.emptyList();
             if (request.getSpecializedServiceIds() != null && !request.getSpecializedServiceIds().isEmpty()) {
                 services = this.serviceRepository.findAllById(request.getSpecializedServiceIds());
@@ -78,7 +89,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
 
             StaffProfile profile = StaffProfile.builder().user(staff).isAvailable(true).specializedServices(new HashSet(services)).rating((double)0.0F).joinedAt(Instant.now()).build();
             staff.setStaffProfile(profile);
-            User savedStaff = (User)this.userRepository.save(staff);
+            User savedStaff = this.userRepository.save(staff);
 
             try {
                 this.emailService.sendStaffWelcomeEmail(savedStaff.getEmail(), temporaryPassword);

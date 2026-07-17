@@ -51,12 +51,27 @@ public class CategoryServiceImpl implements CategoryService {
         }
     }
 
+    @Override
     @Transactional
     public void deleteCategory(Long id) {
-        if (!this.categoryRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Category not found");
-        } else {
-            this.categoryRepository.deleteById(id);
-        }
+        // ၁။ DB ထဲတွင် ရှိမရှိ အရင်စစ်မည်
+        Category category = this.categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
+
+        // ၂။ တကယ်မဖျက်ဘဲ enabled = false သာ ပြောင်းပေးမည် (Soft Delete)
+        category.setEnabled(false);
+        this.categoryRepository.save(category);
+    }
+
+    @Override
+    @Transactional
+    public void restoreCategory(Long id) {
+        // ၁။ DB ထဲတွင် ရှိမရှိ အရင်စစ်မည်
+        Category category = this.categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
+
+        // ၂။ ပြန်လည်အသုံးပြုနိုင်ရန် enabled = true ပြောင်းပေးမည် (Restore)
+        category.setEnabled(true);
+        this.categoryRepository.save(category);
     }
 }

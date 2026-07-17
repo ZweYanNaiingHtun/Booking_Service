@@ -57,4 +57,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findAllByMonthAndYear(@Param("month") int month, @Param("year") int year);
 
     List<Booking> findByBookingDateBetween(Instant start, Instant end);
+
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.assignedStaff.id = :staffProfileId AND b.status = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED")
+    long countCompletedBookingsByStaffId(@Param("staffProfileId") Long staffProfileId);
 }

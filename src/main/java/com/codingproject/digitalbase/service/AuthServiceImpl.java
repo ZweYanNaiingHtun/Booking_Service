@@ -87,11 +87,18 @@ public class AuthServiceImpl implements AuthService {
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
-        User user = this.userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new BadRequestException("Email not found!"));
+        User user = this.userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new BadRequestException("Email not found!"));
+
+        // 🎯 အကောင့်က Block ခံထားရပါက (Enabled = false) လုံးဝဝင်ခွင့်မပြုပါ
+        if (!user.isEnabled()) {
+            throw new BadRequestException("Your account has been disabled. Please contact support.");
+        }
+
         if (!this.passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BadRequestException("Invalid password request");
         } else {
-            Authentication authentication = new UsernamePasswordAuthenticationToken(user, (Object)null, user.getAuthorities());
+            Authentication authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
             String accessToken = this.jwtService.generateAccessToken(authentication);
             String refreshToken = this.jwtService.generateRefreshToken(authentication);
             TokenPair tokenPair = new TokenPair(accessToken, refreshToken);
@@ -145,8 +152,8 @@ public class AuthServiceImpl implements AuthService {
                 user.setEnabled(true);
             }
 
-            user.setOtp((String)null);
-            user.setOtpGeneratedTime((Instant)null);
+            user.setOtp(null);
+            user.setOtpGeneratedTime(null);
             this.userRepository.save(user);
             Authentication authentication = new UsernamePasswordAuthenticationToken(user, (Object)null, user.getAuthorities());
             String accessToken = this.jwtService.generateAccessToken(authentication);
@@ -189,12 +196,21 @@ public class AuthServiceImpl implements AuthService {
             User user = this.userRepository.findByEmail(email).orElseGet(() -> {
                 Role userRole = this.roleRepository.findByRole(RoleName.CUSTOMER).orElseThrow(() -> new ResourceNotFoundException("Default role not found!"));
                 String firebaseUserCode = this.generateUserCode(RoleName.CUSTOMER);
-                User newUser = User.builder().fullName(name != null ? name : email.split("@")[0]).code(firebaseUserCode).email(email).password(this.passwordEncoder.encode(UUID.randomUUID().toString())).roles(new HashSet(Collections.singleton(userRole))).enabled(true).profilePicture(pictureUrl != null ? pictureUrl : "default-profile.png").build();
+                User newUser = User.builder()
+                        .fullName(name != null ? name : email.split("@")[0])
+                        .code(firebaseUserCode)
+                        .email(email)
+                        .password(this.passwordEncoder.encode(UUID.randomUUID().toString()))
+                        .roles(new HashSet(Collections.singleton(userRole)))
+                        .enabled(true) // အကောင့်အသစ်ဆိုလျှင် တန်းဖွင့်ပေးမည်
+                        .profilePicture(pictureUrl != null ? pictureUrl : "default-profile.png")
+                        .build();
                 return this.userRepository.save(newUser);
             });
+
+            // 🎯 ပြင်ဆင်လိုက်သည့်နေရာ: အကယ်၍ ရှိပြီးသားလူကို Admin က Block ထားပါက Firebase ဖြင့်လည်း ပေးမဝင်တော့ပါ
             if (!user.isEnabled()) {
-                user.setEnabled(true);
-                this.userRepository.save(user);
+                throw new BadRequestException("Your account has been disabled. Please contact support.");
             }
 
             Authentication authentication = new UsernamePasswordAuthenticationToken(user, (Object)null, user.getAuthorities());
@@ -204,6 +220,17 @@ public class AuthServiceImpl implements AuthService {
         } catch (FirebaseAuthException e) {
             throw new BadRequestException("Invalid Firebase Token: " + e.getMessage());
         }
+    }
+
+    @Override
+    @Transactional
+    public void updateFcmToken(String email, FcmTokenRequest request) {
+        // ၁။ JWT မှတစ်ဆင့် ရရှိလာသော Email ဖြင့် အသုံးပြုသူအား ရှာဖွေခြင်း
+        User user = this.userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+
+        // ၂။ Request Body ထဲမှ Token ကို ယူ၍ တန်ဖိုးမြှင့်တင်ခြင်း
+        user.setFcmToken(request.getToken());
     }
 
     @Transactional

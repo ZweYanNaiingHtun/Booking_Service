@@ -20,6 +20,8 @@ public interface AuthService {
 
     TokenPair firebaseLogin(String idToken);
 
+    void updateFcmToken(String email, FcmTokenRequest request);
+
     TokenPair refreshToken(RefreshTokenRequest request);
 
     void forgotPassword(ForgotPasswordRequest request);

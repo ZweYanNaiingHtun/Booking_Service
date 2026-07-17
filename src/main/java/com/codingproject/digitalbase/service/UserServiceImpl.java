@@ -1,10 +1,14 @@
 package com.codingproject.digitalbase.service;
 
+import com.codingproject.digitalbase.dtos.BookingResponse;
 import com.codingproject.digitalbase.dtos.ChangePasswordRequest;
 import com.codingproject.digitalbase.dtos.UserProfileResponse;
 import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
+import com.codingproject.digitalbase.model.StaffProfile;
 import com.codingproject.digitalbase.model.User;
+import com.codingproject.digitalbase.repository.BookingRepository;
+import com.codingproject.digitalbase.repository.StaffProfileRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
 import java.io.IOException;
 import java.nio.file.CopyOption;
@@ -26,16 +30,39 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
-    private final EmailService emailService;
+    private final StaffProfileRepository staffProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BookingRepository bookingRepository;
 
     // 🌟 🌟 🌟 ၁။ စာမျက်နှာဖွင့်ချိန်တွင် Email ဖြင့် Profile ဒေတာ ရှာဖွေပေးမည့် Method အသစ်
     @Override
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile(String email) {
+        // ၁။ အီးမေးလ်ဖြင့် အသုံးပြုသူအား ရှာဖွေခြင်း
         User user = this.userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User profile not found with email: " + email));
-        return this.mapToProfileResponse(user);
+
+        Double rating = null;
+        Long completedBookingsCount = null;
+
+        // ၂။ အသုံးပြုသူသည် STAFF Role ဟုတ်မဟုတ် စစ်ဆေးခြင်း
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(role -> "STAFF".equals(role.getRole().name()));
+
+        // 🎯 ၃။ အကယ်၍ ဝန်ထမ်းဖြစ်ပါက Rating နှင့် Completed Bookings Count အား ရှာဖွေတွက်ချက်ခြင်း
+        if (isStaff) {
+            StaffProfile staffProfile = this.staffProfileRepository.findByUserId(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Staff profile not found for user email: " + email));
+
+            // DB ထဲရှိ လက်ရှိ Staff ၏ Rating အား ရယူခြင်း
+            rating = staffProfile.getRating();
+
+            // 💡 Booking Table ထဲမှ အဆိုပါ ဝန်ထမ်း တာဝန်ယူပြီး COMPLETED ဖြစ်သွားသော အရေအတွက်အား Count လုပ်ခြင်း
+            // (ဆရာကြီးတို့၏ Booking Status Enum အမျိုးအစားပေါ်မူတည်၍ လိုအပ်သလို ပြောင်းလဲနိုင်ပါသည်)
+            completedBookingsCount = this.bookingRepository.countCompletedBookingsByStaffId(staffProfile.getId());
+        }
+        // ၄။ DTO ထဲသို့ ဒေတာများ ထည့်သွင်းကာ ပြန်လည်ပေးပို့ခြင်း
+        return this.mapToProfileResponse(user, rating, completedBookingsCount);
     }
 
     @Override
@@ -60,7 +87,7 @@ public class UserServiceImpl implements UserService {
                 Files.copy(profileImage.getInputStream(), filePath, new CopyOption[]{StandardCopyOption.REPLACE_EXISTING});
                 user.setProfilePicture(newFileName);
                 User updatedUser = (User)this.userRepository.save(user);
-                return this.mapToProfileResponse(updatedUser);
+                return this.mapToProfileResponse(updatedUser , null , null);
             } catch (IOException e) {
                 throw new BadRequestException("Failed to store updated profile image: " + e.getMessage());
             }
@@ -80,7 +107,7 @@ public class UserServiceImpl implements UserService {
         } else {
             user.setPassword(this.passwordEncoder.encode(request.getNewPassword()));
             User updatedUser = (User)this.userRepository.save(user);
-            return this.mapToProfileResponse(updatedUser);
+            return this.mapToProfileResponse(updatedUser , null , null);
         }
     }
 
@@ -106,7 +133,8 @@ public class UserServiceImpl implements UserService {
     }
 
     // 🌟 🌟 🌟 ၃။ UI ဒီဇိုင်းနှင့် ကိုက်ညီအောင် Role ပါ တစ်ပါတည်း Map လုပ်ပေးခြင်း
-    private UserProfileResponse mapToProfileResponse(User user) {
+    // 🌟 ပြင်ဆင်လိုက်သည့် မက်သတ်: Parameter ၃ ခု (user, rating, completedBookingsCount) လက်ခံရန် ပြောင်းလဲထားပါသည်
+    private UserProfileResponse mapToProfileResponse(User user, Double rating, Long completedBookingsCount) {
         String relativeImagePath = null;
 
         if (user.getProfilePicture() != null) {
@@ -123,12 +151,14 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .gender(user.getGender())
-                .profilePicture(relativeImagePath) // 🌟 အခုဆိုရင် ကွက်တိ "/uploads/profile-pictures/abc.png" ပုံစံပဲ ထွက်ပါတော့မယ်
+                .profilePicture(relativeImagePath)
                 .role(user.getRoles() != null && !user.getRoles().isEmpty() ?
                         user.getRoles().stream()
                                 .findFirst()
                                 .map(r -> r.getRole().name())
                                 .orElse(null) : null)
+                .rating(rating)                         // 🌟 ယခုအခါ ဝင်လာသော Parameter ကြောင့် စုတ်ယူနိုင်သွားပါပြီ
+                .completedBookingsCount(completedBookingsCount) // 🌟 ယခုအခါ ဝင်လာသော Parameter ကြောင့် စုတ်ယူနိုင်သွားပါပြီ
                 .build();
     }
 }

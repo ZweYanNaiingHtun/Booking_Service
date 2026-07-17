@@ -43,7 +43,8 @@ public class Category {
 
     private String name;
 
-
+    @Column(name = "enabled", nullable = false)
+    private boolean enabled = true;
 
     @OneToMany(mappedBy = "category")
 

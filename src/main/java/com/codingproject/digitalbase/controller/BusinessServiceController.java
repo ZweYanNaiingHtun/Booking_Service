@@ -10,6 +10,8 @@ import com.codingproject.digitalbase.dtos.ServiceResponse;
 import com.codingproject.digitalbase.service.BusinessServiceService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
+
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -53,15 +55,19 @@ public class BusinessServiceController {
 
     @DeleteMapping({"/{id}"})
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<String> deleteService(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> deleteService(@PathVariable Long id) {
         this.businessService.deleteService(id);
-        return ResponseEntity.ok("Service deleted successfully");
+
+        // 🌟 String အစား Frontend အတွက် JSON Object (Key-Value) ပြောင်းလဲပေးခြင်း
+        return ResponseEntity.ok(Map.of("message", "Service deleted successfully"));
     }
 
     @PutMapping({"/{id}/restore"})
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<String> restoreService(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> restoreService(@PathVariable Long id) {
         this.businessService.restoreService(id);
-        return ResponseEntity.ok("Service has been restored successfully and is now active.");
+
+        // 🌟 String အစား Frontend အတွက် JSON Object (Key-Value) ပြောင်းလဲပေးခြင်း
+        return ResponseEntity.ok(Map.of("message", "Service has been restored successfully and is now active."));
     }
 }

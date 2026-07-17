@@ -45,6 +45,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = this.userDetailsService.loadUserByUsername(email);
                     System.out.println("Authorities: " + String.valueOf(userDetails.getAuthorities()));
+
+                    // 🎯 🌟 ပြင်ဆင်ချက်အသစ်- အကောင့် Status ကို စစ်ဆေးခြင်း
+                    // DB ထဲရှိ User Status က enabled = false ဖြစ်နေပါက API ဆက်ခေါ်ခွင့်မပြုဘဲ ပိတ်ချမည်
+                    if (!userDetails.isEnabled()) {
+                        System.out.println("⚠️ Access Denied: Account is disabled for " + email);
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json");
+                        response.setCharacterEncoding("UTF-8");
+
+                        // Frontend က Auto Logout လှမ်းလုပ်နိုင်ရန် JSON message ပြန်ထုတ်ပေးပါမည်
+                        response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"Your account has been disabled. Auto logging out.\"}");
+                        return; // Filter chain ကို ဆက်မသွားစေဘဲ ဤနေရာတွင်တင် ရပ်တန့်လိုက်ပါသည်
+                    }
+
                     if (this.jwtService.validateTokenForUser(jwt, userDetails)) {
                         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails, (Object)null, userDetails.getAuthorities());
                         authToken.setDetails((new WebAuthenticationDetailsSource()).buildDetails(request));

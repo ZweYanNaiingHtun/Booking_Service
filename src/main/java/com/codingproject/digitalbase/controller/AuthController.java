@@ -8,12 +8,17 @@ package com.codingproject.digitalbase.controller;
 import com.codingproject.digitalbase.dtos.*;
 import com.codingproject.digitalbase.repository.UserRepository;
 import com.codingproject.digitalbase.service.AuthService;
+import com.codingproject.digitalbase.service.UserService;
 import jakarta.validation.Valid;
 import java.security.Principal;
+import java.util.Map;
+
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -31,7 +36,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping({"/api/auth"})
 @RequiredArgsConstructor
 public class AuthController {
-    private final UserRepository userRepository;
     private final AuthService authService;
     private final ClientRegistrationRepository clientRegistrationRepository;
 
@@ -94,13 +98,16 @@ public class AuthController {
         return ResponseEntity.ok(tokenPair);
     }
 
-    @PutMapping({"/{userId}/fcm-token"})
-    public ResponseEntity<?> updateFcmToken(@PathVariable Long userId, @RequestParam String token) {
-        return this.userRepository.findById(userId).map((user) -> {
-            user.setFcmToken(token);
-            this.userRepository.save(user);
-            return ResponseEntity.ok("FCM Token updated successfully for user ID: " + userId);
-        }).orElseGet(() -> ResponseEntity.notFound().build());
+    @PutMapping("/fcm-token")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> updateFcmToken(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody FcmTokenRequest request) { // 🎯 🌟 ပြင်ဆင်ချက်: Request Param အစား Request Body ဖြင့် လက်ခံခြင်း
+
+        // request.getToken() ကို သုံးပြီး Service သို့ လွှဲပေးခြင်း
+        this.authService.updateFcmToken(userDetails.getUsername(), request);
+
+        return ResponseEntity.ok(Map.of("message", "FCM Token updated successfully"));
     }
 
     @PostMapping(value = {"/{userId}/upload-image"}, consumes = {"multipart/form-data"})
