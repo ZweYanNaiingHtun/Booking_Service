@@ -11,24 +11,59 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.time.Instant;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    // 🌟 [Admin Framework တွက်] Target Audience တစ်ခုလုံးရဲ့ သမိုင်းကြောင်းအားလုံးကို ဆွဲထုတ်ရန်
+    // ==========================================
+    // 🖥️ UI အပိုင်း (၁) - SENT NOTIFICATIONS PAGE (Admin Direct Send သက်သက်ပြရန်)
+    // ==========================================
+
+    // 🎯 Admin ကိုယ်တိုင် Type (ANNOUNCEMENT, PROMOTION စသည်) သတ်မှတ်ပြီး ပို့ထားသော Global Broadcasts (user IS NULL) သက်သက်သာ ပြရန်
+    Page<Notification> findByTypeIsNotNullAndTargetAudienceAndUserIsNull(TargetAudience targetAudience, Pageable pageable);
+
+    // ==========================================
+    // 📥 UI အပိုင်း (၂) - ADMIN INBOX DRAWER (System Actions & Events များ ပြရန်)
+    // ==========================================
+
+    // 🎯 Incoming Customer Tab Filter: Ordered (PENDING), Cancel (CANCELLED), Review (REVIEW)
+    @Query("SELECT n FROM Notification n WHERE n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.CUSTOMER " +
+            "AND n.createdAt >= :startDate " +
+            "AND (:tab = 'all' OR " +
+            "    (:tab = 'ordered' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.PENDING) OR " +
+            "    (:tab = 'cancel' AND n.customerAction = com.codingproject.digitalbase.enums.CustomerAction.CANCELLED) OR " +
+            "    (:tab = 'review' AND n.customerAction = com.codingproject.digitalbase.enums.CustomerAction.REVIEW))")
+    Page<Notification> findAdminCustomerInbox(
+            @Param("tab") String tab,
+            @Param("startDate") Instant startDate,
+            Pageable pageable);
+
+    // 🎯 Incoming Staff Tab Filter: Started (IN_PROGRESS), Completed (COMPLETED)
+    @Query("SELECT n FROM Notification n WHERE n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.STAFF " +
+            "AND n.createdAt >= :startDate " +
+            "AND (:tab = 'all' OR " +
+            "    (:tab = 'started' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.IN_PROGRESS) OR " +
+            "    (:tab = 'completed' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED))")
+    Page<Notification> findAdminStaffInbox(
+            @Param("tab") String tab,
+            @Param("startDate") Instant startDate,
+            Pageable pageable);
+
+    // ==========================================
+    // 📱 ကုဒ်ဟောင်းများ (Mobile App နှင့် အခြား Framework များအတွက် ချန်လှပ်ထားပါသည်)
+    // ==========================================
+
     List<Notification> findByTargetAudienceOrderByCreatedAtDesc(TargetAudience targetAudience);
 
-    // 🌟 Specific User အတွက် Type အလိုက် Noti Filter လုပ်ရန်
     List<Notification> findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
             TargetAudience targetAudience,
             NotificationType type,
             Long userId
     );
 
-    // အမျိုးအစားအလိုက် သီးသန့်ဆွဲထုတ်ခြင်း
     List<Notification> findByTargetAudienceAndTypeOrderByCreatedAtDesc(TargetAudience audience, NotificationType type);
 
-    // 🌟 Customer/Staff Mobile App Inbox အတွက် Personal + Public Broadcast ခွဲထုတ်ပေးမည့် Query
     @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience " +
             "AND (" +
             "  n.type IN (com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, " +
@@ -50,7 +85,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience AND (n.user.id = :userId OR n.user IS NULL)")
     Page<Notification> findNotificationsForUser(@Param("userId") Long userId, @Param("audience") TargetAudience audience, Pageable pageable);
 
-    // 🌟 ၂။ Derived Query Method များတွင် Pageable ပြောင်းလဲခြင်း (OrderBy စာသားများ ဖြုတ်လိုက်ပါ)
     Page<Notification> findByTargetAudienceAndTypeAndUserId(TargetAudience targetAudience, NotificationType type, Long userId, Pageable pageable);
 
     Page<Notification> findByTargetAudienceAndType(TargetAudience targetAudience, NotificationType type, Pageable pageable);

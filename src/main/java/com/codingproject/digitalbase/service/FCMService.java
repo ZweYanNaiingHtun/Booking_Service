@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class FCMService {
     private static final Logger log = LoggerFactory.getLogger(FCMService.class);
-    @Async()
+    @Async("notificationExecutor")
     public void sendPushNotification(String targetToken, String title, String body) {
         Notification notification = Notification.builder().setTitle(title).setBody(body).build();
         Message message = Message.builder().setToken(targetToken).setNotification(notification).build();
@@ -34,6 +34,7 @@ public class FCMService {
 
     }
 
+    @Async("notificationExecutor")
     public void sendPushNotificationToTopic(String topic, String title, String body) {
         Notification notification = Notification.builder().setTitle(title).setBody(body).build();
         Message message = Message.builder().setTopic(topic).setNotification(notification).build();

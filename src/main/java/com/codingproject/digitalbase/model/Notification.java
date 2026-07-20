@@ -1,5 +1,7 @@
 package com.codingproject.digitalbase.model;
 
+import com.codingproject.digitalbase.enums.BookingStatus;
+import com.codingproject.digitalbase.enums.CustomerAction;
 import com.codingproject.digitalbase.enums.NotificationType;
 import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.utils.JsonToMapConverter;
@@ -36,6 +38,12 @@ public class Notification {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false , length = 50)
     private NotificationType type;
+
+    @Enumerated(EnumType.STRING)
+    private BookingStatus bookingStatus; // 🎯 Staff Action Filter အတွက် (IN_PROGRESS, COMPLETED)
+
+    @Enumerated(EnumType.STRING)
+    private CustomerAction customerAction;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, name = "target_audience" ,length = 50)

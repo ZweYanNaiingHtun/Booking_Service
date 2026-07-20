@@ -3,10 +3,12 @@ package com.codingproject.digitalbase.service;
 import com.codingproject.digitalbase.dtos.NotificationDTO;
 import com.codingproject.digitalbase.dtos.NotificationRequest;
 import com.codingproject.digitalbase.enums.NotificationType;
+import com.codingproject.digitalbase.enums.BookingStatus;
+import com.codingproject.digitalbase.enums.CustomerAction;
+import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
 import com.codingproject.digitalbase.model.Notification;
-import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.model.User;
 import com.codingproject.digitalbase.repository.NotificationRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
@@ -23,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
@@ -80,15 +83,62 @@ public class NotificationServiceImpl implements NotificationService {
         return mapToDTO(saved);
     }
 
+    // ==========================================
+    // 🖥️ UI အပိုင်း (၁) - SENT NOTIFICATIONS HISTORY PAGE
+    // ==========================================
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getAllNotificationsByAudience(TargetAudience audience, Pageable pageable) {
         log.info("Admin UI: Fetching paged global notification history for audience: {}", audience);
-        Page<Notification> notificationPage = notificationRepository.findByTargetAudience(audience, pageable);
+        // 🎯 ပြင်ဆင်ချက်: System Events များမပါဘဲ Admin ကိုယ်တိုင် ပို့ထားသည့် Global Broadcasts သက်သက်သာ ဆွဲထုတ်ခြင်း
+        Page<Notification> notificationPage = notificationRepository.findByTypeIsNotNullAndTargetAudienceAndUserIsNull(audience, pageable);
         return notificationPage.map(this::mapToDTO);
     }
 
-    // 📱 [Customer Mobile App တွက်] 🌟 Pagination စနစ်ဖြင့် အဆင့်မြှင့်တင်ထားသော Inbox Filter
+    // ==========================================
+    // 📥 UI အပိုင်း (၂) - ညာဘက်ခြမ်း BELL INBOX DRAWER (NEW 🌟)
+    // ==========================================
+
+    // 🎯 Incoming Customer Tab: Ordered (PENDING), Cancel (CANCELLED), Review (REVIEW)
+    @Override
+    @Transactional(readOnly = true)
+    public Page<NotificationDTO> getAdminInboxCustomer(String tab, String timeFilter, Pageable pageable) {
+        Instant startDate = calculateStartDate(timeFilter);
+        String cleanTab = (tab == null) ? "all" : tab.trim().toLowerCase();
+
+        log.info("Admin Inbox: Fetching Customer events with filter tab: {}, since: {}", cleanTab, startDate);
+        return notificationRepository.findAdminCustomerInbox(cleanTab, startDate, pageable)
+                .map(this::mapToDTO);
+    }
+
+    // 🎯 Incoming Staff Tab: Started (IN_PROGRESS), Completed (COMPLETED)
+    @Override
+    @Transactional(readOnly = true)
+    public Page<NotificationDTO> getAdminInboxStaff(String tab, String timeFilter, Pageable pageable) {
+        Instant startDate = calculateStartDate(timeFilter);
+        String cleanTab = (tab == null) ? "all" : tab.trim().toLowerCase();
+
+        log.info("Admin Inbox: Fetching Staff events with filter tab: {}, since: {}", cleanTab, startDate);
+        return notificationRepository.findAdminStaffInbox(cleanTab, startDate, pageable)
+                .map(this::mapToDTO);
+    }
+
+    // 💡 Helper Method: Today, This Week, This Month ခလုတ်များအတွက် Date တွက်ချက်ရန်
+    private Instant calculateStartDate(String timeFilter) {
+        if ("today".equalsIgnoreCase(timeFilter)) {
+            return Instant.now().minus(1, ChronoUnit.DAYS);
+        } else if ("week".equalsIgnoreCase(timeFilter)) {
+            return Instant.now().minus(7, ChronoUnit.DAYS);
+        } else if ("month".equalsIgnoreCase(timeFilter)) {
+            return Instant.now().minus(30, ChronoUnit.DAYS);
+        }
+        return Instant.EPOCH; // "all" ဖြစ်ပါက အစကတည်းက ပြရန်
+    }
+
+    // ==========================================
+    // 📱 MOBILE APPS & SYSTEM AUTO TRIGGERS
+    // ==========================================
+
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getCustomerNotificationsByTab(String email, String tab, Pageable pageable) {
@@ -112,7 +162,6 @@ public class NotificationServiceImpl implements NotificationService {
         return results.map(this::mapToDTO);
     }
 
-    // 📱 [Staff Mobile App တွက်] 🌟 Pagination စနစ်ဖြင့် အဆင့်မြှင့်တင်ထားသော Inbox Filter
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getStaffNotificationsByTab(String email, String tab, Pageable pageable) {
@@ -170,7 +219,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Async("notificationExecutor")
     @Transactional
-    public void sendSystemNotification(String title, String message, NotificationType type,
+    public void saveSystemNotification(String title, String message, NotificationType type,
                                        TargetAudience audience, User targetUser, Map<String, Object> metadata) {
         Notification notification = Notification.builder()
                 .title(title)
@@ -187,6 +236,28 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("🚀 Auto-Notification triggered for {} ({})", targetUser.getEmail(), audience);
     }
 
+    // 🎯 System Auto Event: Customer Action ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန် (Ordered, Cancel, Review)
+    @Transactional
+    public void saveCustomerEventNotification(String title, String message, CustomerAction action, BookingStatus status, User targetUser, Map<String, Object> metadata) {
+        Notification notification = Notification.builder()
+                .title(title).message(message)
+                .customerAction(action).bookingStatus(status)
+                .targetAudience(TargetAudience.CUSTOMER).user(targetUser)
+                .metadata(metadata).createdAt(Instant.now()).isRead(false).build();
+        notificationRepository.save(notification);
+    }
+
+    // 🎯 System Auto Event: Staff Action ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန် (IN_PROGRESS, COMPLETED)
+    @Transactional
+    public void saveStaffEventNotification(String title, String message, BookingStatus status, User targetUser, Map<String, Object> metadata) {
+        Notification notification = Notification.builder()
+                .title(title).message(message)
+                .bookingStatus(status)
+                .targetAudience(TargetAudience.STAFF).user(targetUser)
+                .metadata(metadata).createdAt(Instant.now()).isRead(false).build();
+        notificationRepository.save(notification);
+    }
+
     private NotificationDTO mapToDTO(Notification entity) {
         return NotificationDTO.builder()
                 .id(entity.getId())
@@ -195,6 +266,8 @@ public class NotificationServiceImpl implements NotificationService {
                 .imageUrl(entity.getImageUrl())
                 .type(entity.getType())
                 .targetAudience(entity.getTargetAudience())
+                .bookingStatus(entity.getBookingStatus())   // 🌟 Added mapping
+                .customerAction(entity.getCustomerAction()) // 🌟 Added mapping
                 .isRead(entity.isRead())
                 .createdAt(entity.getCreatedAt())
                 .metadata(entity.getMetadata())

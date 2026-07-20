@@ -1,5 +1,7 @@
 package com.codingproject.digitalbase.dtos;
 
+import com.codingproject.digitalbase.enums.BookingStatus;
+import com.codingproject.digitalbase.enums.CustomerAction;
 import com.codingproject.digitalbase.enums.NotificationType;
 import com.codingproject.digitalbase.enums.TargetAudience;
 import lombok.*;
@@ -17,6 +19,8 @@ public class NotificationDTO {
     private String imageUrl;
     private NotificationType type; // BOOKING, PROMOTION, ANNOUNCEMENT, ALERT, REVIEW
     private TargetAudience targetAudience;
+    private BookingStatus bookingStatus;
+    private CustomerAction customerAction;
     private boolean isRead;
     private Instant createdAt;
 

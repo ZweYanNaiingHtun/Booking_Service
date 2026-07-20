@@ -15,7 +15,7 @@ import com.codingproject.digitalbase.repository.ReviewRepository;
 import com.codingproject.digitalbase.repository.StaffProfileRepository;
 import com.codingproject.digitalbase.repository.UserRepository;
 import jakarta.transaction.Transactional;
-import java.time.Instant;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +86,7 @@ public class ReviewServiceImpl implements ReviewService {
 
         // 📢 ၄။ Customer ထံသို့ Review တင်ပေးမှု အောင်မြင်ကြောင်း Noti ပို့ခြင်း
         try {
-            notificationService.sendSystemNotification(
+            notificationService.saveSystemNotification(
                     "Review Submitted! ⭐",
                     "Thank you for your feedback! You gave a " + request.getStarRating() + "-star rating to " + staffProfile.getUser().getFullName() + ".",
                     NotificationType.BOOKING, // 💡 အကယ်၍ Enum ထဲတွင် REVIEW သီးသန့်ရှိက လဲလှယ်နိုင်ပါသည်
@@ -100,10 +100,10 @@ public class ReviewServiceImpl implements ReviewService {
 
         // 📢 ၅။ သက်ဆိုင်ရာ ဝန်ထမ်း (Staff) ထံသို့ Review အသစ်ရရှိကြောင်း Noti ပို့ခြင်း
         try {
-            notificationService.sendSystemNotification(
+            notificationService.saveSystemNotification(
                     "New Review Received! 📝",
                     currentCustomer.getFullName() + " submitted a " + request.getStarRating() + "-star review for your service.",
-                    NotificationType.BOOKING,
+                    NotificationType.RATING,
                     TargetAudience.STAFF,
                     staffProfile.getUser(), // StaffProfile ၏ User Entity အား တိုက်ရိုက်ရယူခြင်း
                     reviewMetadata

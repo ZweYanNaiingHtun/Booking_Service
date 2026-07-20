@@ -32,7 +32,7 @@ public class ReviewController {
     }
 
     @GetMapping({"/my-history"})
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF')")
     public ResponseEntity<List<ReviewResponse>> getMyReviewHistory(@AuthenticationPrincipal UserDetails userDetails) {
         // 🌟 Token ထဲမှ ပါလာသော Username (Email) ကို Service သို့ လှမ်းပို့လိုက်ခြင်း
         return ResponseEntity.ok(this.reviewService.getMyReviewHistory(userDetails.getUsername()));

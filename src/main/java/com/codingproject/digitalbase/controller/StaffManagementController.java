@@ -11,6 +11,8 @@ import jakarta.validation.Valid;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -79,9 +81,11 @@ public class StaffManagementController {
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @PostMapping("/assign")
-    public ResponseEntity<String> assignLeave(@Valid @RequestBody StaffLeaveRequest request) {
+    public ResponseEntity<Map<String, String>> assignLeave(@Valid @RequestBody StaffLeaveRequest request) {
         this.staffService.assignStaffLeave(request);
-        return ResponseEntity.ok("Staff leave assigned successfully!");
+
+        // Map.of() ကိုသုံးပြီး message တစ်ခုတည်းကို JSON Object အဖြစ် ပြန်ပို့ခြင်း
+        return ResponseEntity.ok(Map.of("message", "Staff leave assigned successfully!"));
     }
 
     @GetMapping("/selected-day-leaves")

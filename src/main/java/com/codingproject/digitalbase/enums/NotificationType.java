@@ -5,5 +5,6 @@ public enum NotificationType {
     PROMOTION,
     REMINDER,
     ALERT,
-    BOOKING
+    BOOKING,
+    RATING
 }
