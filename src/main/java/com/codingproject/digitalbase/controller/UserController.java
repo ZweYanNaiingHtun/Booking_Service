@@ -65,4 +65,40 @@ public class UserController {
                 "message", "Phone number updated successfully"
         ));
     }
+
+    @DeleteMapping("/profile")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF')")
+    public ResponseEntity<?> deleteMyAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody DeleteAccountRequest request) {
+
+        this.userService.deactivateMyAccount(userDetails.getUsername(), request);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Your account has been deactivated successfully."
+        ));
+    }
+
+    // 🔓 Admin Dashboard မိုဒယ်မှ "Unblock Account" ခလုတ်နှိပ်သည့် Endpoint
+    @PutMapping("/{userId}/unblock")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<?> unblockUserByAdmin(@PathVariable Long userId) {
+        this.userService.unblockUserByAdmin(userId);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "User account has been unblocked successfully. The user can now log in."
+        ));
+    }
+
+    // 🚫 Admin Dashboard မိုဒယ်မှ "Block Account" ခလုတ်နှိပ်သည့် Endpoint
+    @PutMapping("/{userId}/block")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
+    public ResponseEntity<?> blockUserByAdmin(@PathVariable Long userId) {
+        this.userService.blockUserByAdmin(userId);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "User account has been blocked successfully."
+        ));
+    }
 }

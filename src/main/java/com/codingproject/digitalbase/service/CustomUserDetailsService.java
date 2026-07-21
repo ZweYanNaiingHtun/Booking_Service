@@ -19,6 +19,8 @@ public class CustomUserDetailsService implements UserDetailsService {
     private final UserRepository userRepository;
 
     public UserDetails loadUserByUsername(String loginIdentifier) throws UsernameNotFoundException {
-        return (UserDetails)this.userRepository.findByCode(loginIdentifier).or(() -> this.userRepository.findByEmail(loginIdentifier)).orElseThrow(() -> new UsernameNotFoundException("User not found with Code or Email: " + loginIdentifier));
+        return this.userRepository.findByCode(loginIdentifier).or(() ->
+                this.userRepository.findByEmail(loginIdentifier)).orElseThrow(() ->
+                new UsernameNotFoundException("User not found with Code or Email: " + loginIdentifier));
     }
 }

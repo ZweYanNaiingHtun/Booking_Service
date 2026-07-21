@@ -6,8 +6,10 @@ import com.codingproject.digitalbase.service.PackageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/packages")
@@ -43,14 +45,27 @@ public class PackageController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * 🎯 [PUT] Package အချက်အလက်များ ပြင်ဆင်ရန်
-     */
     @PutMapping("/{id}")
     public ResponseEntity<PackageResponse> updatePackage(
             @PathVariable Long id,
             @RequestBody PackageRequest request) {
         PackageResponse response = packageService.updatePackage(id, request);
         return ResponseEntity.ok(response);
+    }
+
+    // 🌟 1. Package အား ပိတ်ပစ်မည့် Soft Delete Endpoint
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> deletePackage(@PathVariable Long id) {
+        this.packageService.deletePackage(id);
+        return ResponseEntity.ok(Map.of("message", "Package deleted successfully"));
+    }
+
+    // 🌟 2. Package အား ပြန်လည်ဖွင့်ပေးမည့် Restore Endpoint
+    @PutMapping("/{id}/restore")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> restorePackage(@PathVariable Long id) {
+        this.packageService.restorePackage(id);
+        return ResponseEntity.ok(Map.of("message", "Package restored successfully"));
     }
 }

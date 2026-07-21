@@ -2,6 +2,7 @@ package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.BookingResponse;
 import com.codingproject.digitalbase.dtos.ChangePasswordRequest;
+import com.codingproject.digitalbase.dtos.DeleteAccountRequest;
 import com.codingproject.digitalbase.dtos.UserProfileResponse;
 import com.codingproject.digitalbase.exception.BadRequestException;
 import com.codingproject.digitalbase.exception.ResourceNotFoundException;
@@ -160,5 +161,56 @@ public class UserServiceImpl implements UserService {
                 .rating(rating)                         // 🌟 ယခုအခါ ဝင်လာသော Parameter ကြောင့် စုတ်ယူနိုင်သွားပါပြီ
                 .completedBookingsCount(completedBookingsCount) // 🌟 ယခုအခါ ဝင်လာသော Parameter ကြောင့် စုတ်ယူနိုင်သွားပါပြီ
                 .build();
+    }
+    // 🔓 1. Admin မှ User ကို Unblock ပြုလုပ်ခြင်း (အကောင့် ပြန်ဖွင့်ပေးခြင်း)
+    @Override
+    @Transactional
+    public void unblockUserByAdmin(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+
+        if (user.isEnabled()) {
+            throw new BadRequestException("User account is already active and unblocked.");
+        }
+
+        user.setEnabled(true); // 🎯 User status ကို ပြန်လည် Active (true) လုပ်ပေးခြင်း
+        userRepository.save(user);
+
+        log.info("🔓 Admin successfully UNBLOCKED User ID: {} ({})", userId, user.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void deactivateMyAccount(String email, DeleteAccountRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+
+        // 🔒 ၁။ ရိုက်ထည့်လိုက်သော Password မှန်/မမှန် တိုက်စစ်ခြင်း
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new BadRequestException("Incorrect password. Please enter your correct password to delete account.");
+        }
+
+        // 🚫 ၂။ Password မှန်ပါက Account Status အား Disable ပြုလုပ်ခြင်း
+        user.setEnabled(false);
+        userRepository.save(user);
+
+        log.info("🚫 User {} has successfully deactivated their own account after password verification.", email);
+    }
+
+    // 🚫 2. Admin မှ User ကို Block ပြုလုပ်ခြင်း
+    @Override
+    @Transactional
+    public void blockUserByAdmin(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+
+        if (!user.isEnabled()) {
+            throw new BadRequestException("User account is already blocked.");
+        }
+
+        user.setEnabled(false); // 🎯 User status ကို Disable (false) ပြုလုပ်ခြင်း
+        userRepository.save(user);
+
+        log.info("🚫 Admin successfully BLOCKED User ID: {} ({})", userId, user.getEmail());
     }
 }

@@ -11,6 +11,7 @@ import com.codingproject.digitalbase.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 @Service
@@ -44,7 +45,6 @@ public class PackageServiceImpl implements PackageService {
             throw new BadRequestException("One or more selected service IDs are invalid.");
         }
 
-        // 🎯 🌟 [NEW RESTRICTION] ရွေးချယ်ထားသော ဝန်ဆောင်မှုများထဲတွင် အခြား Package ပါဝင်နေပါက တားဆီးခြင်း (Pure Services Only)
         boolean hasNestedPackage = selectedServices.stream().anyMatch(BusinessService::is_package);
         if (hasNestedPackage) {
             throw new BadRequestException("Package creation denied! A package can only contain pure standard services, not other packages.");
@@ -75,14 +75,12 @@ public class PackageServiceImpl implements PackageService {
                 .toList();
     }
 
-    // 🎯 🌟 [ADDED] ID ဖြင့် Package အား ဆွဲထုတ်ခြင်း Logic
     @Override
     @Transactional(readOnly = true)
     public PackageResponse getPackageById(Long id) {
         BusinessService service = serviceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Package not found with id: " + id));
 
-        // တကယ်လို့ ရိုးရိုး service ဖြစ်နေရင် တားဆီးရန်
         if (!service.is_package()) {
             throw new BadRequestException("The requested ID is a standard service, not a package.");
         }
@@ -90,7 +88,6 @@ public class PackageServiceImpl implements PackageService {
         return mapToPackageResponse(service);
     }
 
-    // 🎯 🌟 [ADDED] Package အား ပြန်လည်ပြင်ဆင်ခြင်း Logic
     @Override
     @Transactional
     public PackageResponse updatePackage(Long id, PackageRequest request) {
@@ -122,7 +119,6 @@ public class PackageServiceImpl implements PackageService {
             throw new BadRequestException("One or more selected service IDs are invalid.");
         }
 
-        // 🎯 🌟 [NEW RESTRICTION] ပြင်ဆင်သည့်အခါတွင်လည်း အခြား Package များ ရောနှောမလာစေရန် တားဆီးခြင်း (Pure Services Only)
         boolean hasNestedPackage = selectedServices.stream().anyMatch(BusinessService::is_package);
         if (hasNestedPackage) {
             throw new BadRequestException("Package update denied! A package can only contain pure standard services, not other packages.");
@@ -139,6 +135,36 @@ public class PackageServiceImpl implements PackageService {
         businessPackage.setBundledServices(selectedServices);
 
         return mapToPackageResponse(serviceRepository.save(businessPackage));
+    }
+
+    // 🌟 1. Soft Delete Implementation
+    @Override
+    @Transactional
+    public void deletePackage(Long id) {
+        BusinessService businessPackage = serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Package not found with id: " + id));
+
+        if (!businessPackage.is_package()) {
+            throw new BadRequestException("The requested ID is a standard service, not a package.");
+        }
+
+        businessPackage.setEnabled(false);
+        serviceRepository.save(businessPackage);
+    }
+
+    // 🌟 2. Restore Implementation
+    @Override
+    @Transactional
+    public void restorePackage(Long id) {
+        BusinessService businessPackage = serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Package not found with id: " + id));
+
+        if (!businessPackage.is_package()) {
+            throw new BadRequestException("The requested ID is a standard service, not a package.");
+        }
+
+        businessPackage.setEnabled(true);
+        serviceRepository.save(businessPackage);
     }
 
     private PackageResponse mapToPackageResponse(BusinessService service) {

@@ -59,6 +59,11 @@ public class BookingServiceImpl implements BookingService {
     private final AuthService authService;
     private final NotificationRepository notificationRepository;
 
+    // Define a reusable DateTimeFormatter at class level for push notification
+    private static final DateTimeFormatter DISPLAY_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd MMM yyyy 'at' hh:mm a")
+                    .withZone(ZoneId.of("Asia/Yangon"));
+
     private List<Booking> getOverlappingPendingBookings(Instant bookingDate, Instant staffStartTime, Instant staffEndTime, int bufferMinutes) {
         // 🌟 ၁။ ၎င်းနေ့ရက်၏ တစ်ရက်တာအတွင်းရှိသော ဒေတာများကိုသာ DB မှ ဆွဲထုတ်ရန် Boundary သတ်မှတ်ခြင်း
         ZoneId zoneId = ZoneId.of("Asia/Yangon");
@@ -269,7 +274,7 @@ public class BookingServiceImpl implements BookingService {
         // =========================================================================
         String serviceName = service.getName();
         String customerName = currentUser.getFullName();
-        String adminNotiTitle = "New Booking Ordered 📩";
+        String adminNotiTitle = "New Booking Ordered";
         String adminNotiBody = customerName + " has placed a new booking for " + serviceName + ".";
 
         java.util.Map<String, Object> adminMetadata = new java.util.HashMap<>();
@@ -299,7 +304,7 @@ public class BookingServiceImpl implements BookingService {
         // =========================================================================
         try {
             String testTopic = "booking-updates";
-            String title = "New Booking Alert! 🎉";
+            String title = "New Booking Alert!";
             String body = customerName + " has placed a new booking for " + serviceName + ".";
             fcmService.sendPushNotificationToTopic(testTopic, title, body);
             log.info("Real-time UI Update Push sent to Dashboard Topic successfully.");
@@ -386,7 +391,7 @@ public class BookingServiceImpl implements BookingService {
             // =========================================================================
             String serviceName = service.getName();
             String staffName = currentStaff.getFullName();
-            String adminNotiTitle = "Walk-In Booking Completed ✅";
+            String adminNotiTitle = "Walk-In Booking Completed";
             String adminNotiBody = staffName + " has processed a walk-in booking for " + serviceName + ".";
 
             java.util.Map<String, Object> adminMetadata = new java.util.HashMap<>();
@@ -507,7 +512,7 @@ public class BookingServiceImpl implements BookingService {
             throw new BadRequestException("Only PENDING bookings can be confirmed.");
         }
 
-        // Buffer Time တွက်ချက်ခြင်း
+        // Buffer Time calculation
         Instant customerStartTime = booking.getBookingDate();
         Instant staffStartTime = customerStartTime.minus(Duration.ofMinutes(10));
         Integer durationInMinutes = booking.getBusinessService().getDurationInMinutes();
@@ -515,7 +520,7 @@ public class BookingServiceImpl implements BookingService {
 
         StaffProfile finalStaffProfile = null;
 
-        // Staff ခွဲဝေမှု Logic
+        // Staff Assignment Logic
         if (booking.getRequestedStaff() != null) {
             finalStaffProfile = booking.getRequestedStaff();
             boolean isBusy = staffAssignmentRepository.isStaffBusy(finalStaffProfile.getUser().getId(), staffStartTime, staffEndTime);
@@ -537,7 +542,7 @@ public class BookingServiceImpl implements BookingService {
             finalStaffProfile = mutableList.get(0);
         }
 
-        // StaffAssignment တည်ဆောက်ခြင်း
+        // Build StaffAssignment
         StaffAssignment assignment = StaffAssignment.builder()
                 .staffProfile(finalStaffProfile)
                 .startTime(staffStartTime)
@@ -554,20 +559,24 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking ID: {} status successfully updated to CONFIRMED.", id);
 
         String serviceName = savedBooking.getBusinessService().getName();
-        String bookingDateStr = savedBooking.getBookingDate().toString();
+        String bookingDateIsoStr = savedBooking.getBookingDate().toString();
         String assignedStaffName = finalStaffProfile.getUser().getFullName();
 
-        // ==========================================
-        // 🌟 1. CUSTOMER NOTIFICATION & DYNAMIC PUSH
-        // ==========================================
+        // Human-readable date string for display (e.g., "24 Aug 2026 at 12:00 PM")
+        String readableBookingDate = DISPLAY_DATE_FORMATTER.format(savedBooking.getBookingDate());
+
+        // =========================================================================
+        // 1. CUSTOMER NOTIFICATION & DYNAMIC PUSH
+        // =========================================================================
         User customer = savedBooking.getCustomer();
         String customerNotiTitle = "Booking Confirmed! 🎉";
-        String customerNotiBody = "Your booking for " + serviceName + " has been successfully confirmed with Staff: " + assignedStaffName;
+        String customerNotiBody = "Your booking for " + serviceName + " on " + readableBookingDate +
+                " has been successfully confirmed with Staff: " + assignedStaffName;
 
         java.util.Map<String, Object> customerMetadata = new java.util.HashMap<>();
         customerMetadata.put("bookingId", savedBooking.getId().toString());
         customerMetadata.put("serviceName", serviceName);
-        customerMetadata.put("bookingDate", bookingDateStr);
+        customerMetadata.put("bookingDate", bookingDateIsoStr);
         customerMetadata.put("bookingStatus", "CONFIRMED");
         customerMetadata.put("staffName", assignedStaffName);
 
@@ -587,23 +596,23 @@ public class BookingServiceImpl implements BookingService {
         if (customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
             try {
                 fcmService.sendPushNotification(customer.getFcmToken(), customerNotiTitle, customerNotiBody);
-                log.info("✅ FCM Push sent to Customer for confirmation.");
+                log.info("FCM Push sent to Customer for confirmation successfully.");
             } catch (Exception e) {
-                log.error("❌ FCM Customer Push failed: {}", e.getMessage());
+                log.error("FCM Customer Push failed: {}", e.getMessage());
             }
         }
 
-        // ==========================================
-        // 🌟 2. STAFF NOTIFICATION & DYNAMIC PUSH
-        // ==========================================
+        // =========================================================================
+        // 2. STAFF NOTIFICATION & DYNAMIC PUSH
+        // =========================================================================
         User staffUser = finalStaffProfile.getUser();
         String staffNotiTitle = "New Booking Assigned! 📅";
-        String staffNotiBody = "You have been assigned to a new booking: " + serviceName + " on " + bookingDateStr;
+        String staffNotiBody = "You have been assigned to " + serviceName + " on " + readableBookingDate + ".";
 
         java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
         staffMetadata.put("bookingId", savedBooking.getId().toString());
         staffMetadata.put("serviceName", serviceName);
-        staffMetadata.put("bookingDate", bookingDateStr);
+        staffMetadata.put("bookingDate", bookingDateIsoStr);
         staffMetadata.put("bookingStatus", "CONFIRMED");
         staffMetadata.put("customerName", customer.getFullName());
 
@@ -624,20 +633,23 @@ public class BookingServiceImpl implements BookingService {
         if (staffUser.getFcmToken() != null && !staffUser.getFcmToken().isEmpty()) {
             try {
                 fcmService.sendPushNotification(staffUser.getFcmToken(), staffNotiTitle, staffNotiBody);
-                log.info("✅ FCM Push Notification sent to Assigned Staff successfully.");
+                log.info("FCM Push Notification sent to Assigned Staff successfully.");
             } catch (Exception e) {
-                log.error("❌ FCM Staff Push failed: {}", e.getMessage());
+                log.error("FCM Staff Push failed: {}", e.getMessage());
             }
         }
 
-        // ==========================================
-        // 🌟 3. REAL-TIME TOPIC PUSH FOR ADMIN DASHBOARD
-        // ==========================================
+        // =========================================================================
+        // 3. REAL-TIME TOPIC PUSH FOR ADMIN DASHBOARD (ENGLISH)
+        // =========================================================================
         try {
-            fcmService.sendPushNotificationToTopic("booking-updates", "Booking Confirmed Alert!",
-                    customer.getFullName() + " ၏ ဘွတ်ကင်ကို အတည်ပြုပြီး ဝန်ထမ်း " + assignedStaffName + " အား တာဝန်ပေးလိုက်ပါပြီ။");
+            String topicTitle = "Booking Confirmed Alert!";
+            String topicBody = customer.getFullName() + "'s booking for " + serviceName +
+                    " has been confirmed and assigned to " + assignedStaffName + ".";
+            fcmService.sendPushNotificationToTopic("booking-updates", topicTitle, topicBody);
+            log.info("Real-time UI Update Push sent to Dashboard Topic successfully.");
         } catch (Exception e) {
-            log.error("⚠️ Dashboard Topic Push bypassed: {}", e.getMessage());
+            log.error("Dashboard Topic Push bypassed: {}", e.getMessage());
         }
 
         BookingResponse response = mapToResponse(savedBooking);
@@ -687,17 +699,18 @@ public class BookingServiceImpl implements BookingService {
         }
 
         Booking savedBooking = this.bookingRepository.save(booking);
-        log.info("Booking ID: {} updated to CANCELLED.", id);
+        log.info("Booking ID: {} updated to CANCELLED by Admin.", id);
 
         String serviceName = savedBooking.getBusinessService().getName();
-        String bookingDateStr = savedBooking.getBookingDate().toString();
+        String bookingDateIsoStr = savedBooking.getBookingDate().toString();
+        String readableBookingDate = DISPLAY_DATE_FORMATTER.format(savedBooking.getBookingDate());
 
         // ==========================================
-        // 🌟 1. CUSTOMER DB NOTIFICATION & FCM PUSH (ADMIN INBOX MAPS HERE VIA CUSTOMER ACTION)
+        // 1. CUSTOMER DB NOTIFICATION & FCM PUSH
         // ==========================================
         User customer = savedBooking.getCustomer();
-        String customerNotiTitle = "Booking Rejected ❌";
-        String customerNotiBody = "Sorry, your booking for " + serviceName + " has been rejected by the admin.";
+        String customerNotiTitle = "Booking Cancelled";
+        String customerNotiBody = "Sorry, your booking for " + serviceName + " on " + readableBookingDate + " has been rejected by the admin.";
         if (reason != null && !reason.isBlank()) {
             customerNotiBody += " Reason: " + reason;
         }
@@ -705,7 +718,7 @@ public class BookingServiceImpl implements BookingService {
         java.util.Map<String, Object> customerMetadata = new java.util.HashMap<>();
         customerMetadata.put("bookingId", savedBooking.getId().toString());
         customerMetadata.put("serviceName", serviceName);
-        customerMetadata.put("bookingDate", bookingDateStr);
+        customerMetadata.put("bookingDate", bookingDateIsoStr);
         customerMetadata.put("bookingStatus", "CANCELLED");
         customerMetadata.put("reason", reason != null ? reason : "");
 
@@ -714,7 +727,7 @@ public class BookingServiceImpl implements BookingService {
                 .message(customerNotiBody)
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
-                .customerAction(CustomerAction.CANCELLED) // 🎯 Admin Inbox (Customer -> Cancel Tab) သို့ စီးဆင်းစေရန်
+                .customerAction(CustomerAction.CANCELLED)
                 .bookingStatus(BookingStatus.CANCELLED)
                 .user(customer)
                 .metadata(customerMetadata)
@@ -726,24 +739,24 @@ public class BookingServiceImpl implements BookingService {
         if ("ADMIN".equals(cancelledBy) && customer.getFcmToken() != null && !customer.getFcmToken().isEmpty()) {
             try {
                 this.fcmService.sendPushNotification(customer.getFcmToken(), customerNotiTitle, customerNotiBody);
-                log.info("✅ FCM Cancel Push sent to Customer successfully.");
+                log.info("FCM Cancel Push sent to Customer successfully.");
             } catch (Exception e) {
-                log.error("❌ FCM Customer Cancel Push failed: {}", e.getMessage());
+                log.error("FCM Customer Cancel Push failed: {}", e.getMessage());
             }
         }
 
         // ==========================================
-        // 🌟 2. STAFF DB NOTIFICATION & FCM PUSH
+        // 2. STAFF DB NOTIFICATION & FCM PUSH
         // ==========================================
         if (staffToNotify != null) {
             User staffUser = staffToNotify.getUser();
-            String staffNotiTitle = "Booking Cancelled 🔴";
-            String staffNotiBody = "The booking for " + serviceName + " on " + bookingDateStr + " has been cancelled by Admin.";
+            String staffNotiTitle = "Booking Cancelled";
+            String staffNotiBody = "The booking for " + serviceName + " on " + readableBookingDate + " has been cancelled by Admin.";
 
             java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
             staffMetadata.put("bookingId", savedBooking.getId().toString());
             staffMetadata.put("serviceName", serviceName);
-            staffMetadata.put("bookingDate", bookingDateStr);
+            staffMetadata.put("bookingDate", bookingDateIsoStr);
             staffMetadata.put("bookingStatus", "CANCELLED");
             staffMetadata.put("cancelledBy", "ADMIN");
 
@@ -764,21 +777,22 @@ public class BookingServiceImpl implements BookingService {
             if (staffUser.getFcmToken() != null && !staffUser.getFcmToken().isEmpty()) {
                 try {
                     this.fcmService.sendPushNotification(staffUser.getFcmToken(), staffNotiTitle, staffNotiBody);
-                    log.info("✅ FCM Cancel Push sent to Staff successfully.");
+                    log.info("FCM Cancel Push sent to Staff successfully.");
                 } catch (Exception e) {
-                    log.error("❌ FCM Staff Cancel Push failed: {}", e.getMessage());
+                    log.error("FCM Staff Cancel Push failed: {}", e.getMessage());
                 }
             }
         }
 
         // ==========================================
-        // 🌟 3. REAL-TIME TOPIC PUSH FOR DASHBOARD
+        // 3. REAL-TIME TOPIC PUSH FOR DASHBOARD (ENGLISH)
         // ==========================================
         try {
-            fcmService.sendPushNotificationToTopic("booking-updates", "Booking Cancelled By Admin",
-                    customer.getFullName() + " ၏ ဘွတ်ကင်ကို Admin မှ ပယ်ဖျက်လိုက်ပါသည်။");
+            String dashboardBody = customer.getFullName() + "'s booking for " + serviceName + " on " + readableBookingDate + " has been cancelled by Admin.";
+            fcmService.sendPushNotificationToTopic("booking-updates", "Booking Cancelled By Admin", dashboardBody);
+            log.info("Real-time UI Update Push sent to Dashboard Topic successfully.");
         } catch (Exception e) {
-            log.error("⚠️ Dashboard Topic Push bypassed: {}", e.getMessage());
+            log.error("Dashboard Topic Push bypassed: {}", e.getMessage());
         }
 
         BookingResponse response = this.mapToResponse(savedBooking);
@@ -826,19 +840,20 @@ public class BookingServiceImpl implements BookingService {
         log.info("Booking ID: {} successfully cancelled by Customer.", id);
 
         String serviceName = savedBooking.getBusinessService().getName();
-        String bookingDateStr = savedBooking.getBookingDate().toString();
+        String bookingDateIsoStr = savedBooking.getBookingDate().toString();
+        String readableBookingDate = DISPLAY_DATE_FORMATTER.format(savedBooking.getBookingDate());
 
         // =========================================================================
-        // 1. CUSTOMER DB NOTIFICATION (ADMIN INBOX MAPS HERE VIA CUSTOMER PANEL)
+        // 1. CUSTOMER DB NOTIFICATION
         // =========================================================================
         User customer = savedBooking.getCustomer();
-        String customerNotiTitle = "Booking Cancelled 🔴";
-        String customerNotiBody = "Your appointment for " + serviceName + " has been successfully cancelled.";
+        String customerNotiTitle = "Booking Cancelled";
+        String customerNotiBody = "Your appointment for " + serviceName + " on " + readableBookingDate + " has been successfully cancelled.";
 
         java.util.Map<String, Object> customerMetadata = new java.util.HashMap<>();
         customerMetadata.put("bookingId", savedBooking.getId().toString());
         customerMetadata.put("serviceName", serviceName);
-        customerMetadata.put("bookingDate", bookingDateStr);
+        customerMetadata.put("bookingDate", bookingDateIsoStr);
         customerMetadata.put("bookingStatus", "CANCELLED");
 
         Notification customerDbNotification = Notification.builder()
@@ -846,7 +861,7 @@ public class BookingServiceImpl implements BookingService {
                 .message(customerNotiBody)
                 .type(NotificationType.BOOKING)
                 .targetAudience(TargetAudience.CUSTOMER)
-                .customerAction(CustomerAction.CANCELLED) // Maps to Admin Inbox Drawer (Customer -> Cancel Tab)
+                .customerAction(CustomerAction.CANCELLED)
                 .bookingStatus(BookingStatus.CANCELLED)
                 .user(customer)
                 .metadata(customerMetadata)
@@ -861,12 +876,12 @@ public class BookingServiceImpl implements BookingService {
         if (staffToNotify != null) {
             User staffUser = staffToNotify.getUser();
             String staffNotiTitle = "Booking Cancelled by Customer";
-            String staffNotiBody = "The booking for " + serviceName + " on " + bookingDateStr + " has been cancelled by the customer.";
+            String staffNotiBody = "The booking for " + serviceName + " on " + readableBookingDate + " has been cancelled by the customer.";
 
             java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
             staffMetadata.put("bookingId", savedBooking.getId().toString());
             staffMetadata.put("serviceName", serviceName);
-            staffMetadata.put("bookingDate", bookingDateStr);
+            staffMetadata.put("bookingDate", bookingDateIsoStr);
             staffMetadata.put("bookingStatus", "CANCELLED");
             staffMetadata.put("cancelledBy", "CUSTOMER");
             staffMetadata.put("customerName", customer.getFullName());
@@ -901,14 +916,14 @@ public class BookingServiceImpl implements BookingService {
         try {
             // (A) Admin Mobile/Web App Banner Alerts
             String adminTopic = "admin-notifications";
-            String adminPushTitle = "Customer Cancelled Booking 🚨";
-            String adminPushBody = customer.getFullName() + " has cancelled their appointment for " + serviceName + ".";
+            String adminPushTitle = "Customer Cancelled Booking";
+            String adminPushBody = customer.getFullName() + " has cancelled their appointment for " + serviceName + " on " + readableBookingDate + ".";
             this.fcmService.sendPushNotificationToTopic(adminTopic, adminPushTitle, adminPushBody);
             log.info("FCM Push sent to Admin Topic successfully.");
 
             // (B) Admin Web Dashboard Real-time UI Updates
             String dashboardTopic = "booking-updates";
-            String dashboardBody = customer.getFullName() + " has cancelled their booking for " + serviceName + ".";
+            String dashboardBody = customer.getFullName() + " has cancelled their booking for " + serviceName + " on " + readableBookingDate + ".";
             this.fcmService.sendPushNotificationToTopic(dashboardTopic, "Booking Cancelled By Customer", dashboardBody);
             log.info("Real-time UI Update Push sent to Dashboard Topic successfully.");
 
@@ -1096,7 +1111,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse acceptBooking(Long id) {
         log.info("--- Starting acceptBooking process for ID: {} ---", id);
         Booking booking = this.bookingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
 
         if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING) {
             throw new BadRequestException("Only PENDING or CONFIRMED bookings can be accepted.");
@@ -1127,8 +1142,11 @@ public class BookingServiceImpl implements BookingService {
 
             String serviceName = savedBooking.getBusinessService().getName();
             String staffName = currentStaff.getFullName();
-            String staffNotiTitle = "Booking Started by Staff 🟡";
-            String staffNotiBody = "Staff " + staffName + " has started the service for " + serviceName + ".";
+            String bookingDateIsoStr = savedBooking.getBookingDate().toString();
+            String readableBookingDate = DISPLAY_DATE_FORMATTER.format(savedBooking.getBookingDate());
+
+            String staffNotiTitle = "Booking Started";
+            String staffNotiBody = "Staff " + staffName + " has started the service for " + serviceName + " (scheduled for " + readableBookingDate + ").";
 
             // =========================================================================
             // 1. DB NOTIFICATION FOR ADMIN INBOX (STAFF PANEL -> IN_PROGRESS FILTER)
@@ -1136,6 +1154,7 @@ public class BookingServiceImpl implements BookingService {
             java.util.Map<String, Object> staffMetadata = new java.util.HashMap<>();
             staffMetadata.put("bookingId", savedBooking.getId().toString());
             staffMetadata.put("serviceName", serviceName);
+            staffMetadata.put("bookingDate", bookingDateIsoStr);
             staffMetadata.put("bookingStatus", "IN_PROGRESS");
             staffMetadata.put("staffName", staffName);
 
@@ -1229,16 +1248,19 @@ public class BookingServiceImpl implements BookingService {
 
         String serviceName = updatedBooking.getBusinessService().getName();
         String staffName = updatedBooking.getAssignedStaff() != null ? updatedBooking.getAssignedStaff().getUser().getFullName() : "Staff";
+        String bookingDateIsoStr = updatedBooking.getBookingDate().toString();
+        String readableBookingDate = DISPLAY_DATE_FORMATTER.format(updatedBooking.getBookingDate());
 
         // =========================================================================
         // 1. DB NOTIFICATION FOR ADMIN INBOX (STAFF PANEL -> COMPLETED FILTER)
         // =========================================================================
-        String adminNotiTitle = "Booking Completed 🎉";
-        String adminNotiBody = "The service for " + serviceName + " has been successfully completed by " + staffName + ".";
+        String adminNotiTitle = "Booking Completed";
+        String adminNotiBody = "The service for " + serviceName + " on " + readableBookingDate + " has been successfully completed by " + staffName + ".";
 
         java.util.Map<String, Object> adminMetadata = new java.util.HashMap<>();
         adminMetadata.put("bookingId", updatedBooking.getId().toString());
         adminMetadata.put("serviceName", serviceName);
+        adminMetadata.put("bookingDate", bookingDateIsoStr);
         adminMetadata.put("bookingStatus", "COMPLETED");
         adminMetadata.put("staffName", staffName);
         adminMetadata.put("invoiceNumber", generatedInvoiceNumber);
@@ -1266,7 +1288,7 @@ public class BookingServiceImpl implements BookingService {
                 this.fcmService.sendPushNotification(
                         customer.getFcmToken(),
                         "Service Completed! 🎉",
-                        "Your service has been successfully completed. Please proceed to the counter for checkout."
+                        "Your service for " + serviceName + " has been successfully completed. Please proceed to the counter for checkout."
                 );
                 log.info("FCM Push sent to Customer for service completion.");
             } catch (Exception e) {

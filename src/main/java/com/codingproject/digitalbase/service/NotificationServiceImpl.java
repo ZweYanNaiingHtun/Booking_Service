@@ -149,12 +149,20 @@ public class NotificationServiceImpl implements NotificationService {
         Page<Notification> results;
 
         if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab)) {
+            // All Filter: CUSTOMER Audience အောက်ရှိ ဒေတာအားလုံး ပြသမည်
             results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience, pageable);
-        } else if ("booking".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndTypeAndUserId(
-                    audience, NotificationType.BOOKING, customerUser.getId(), pageable);
-        } else if ("promotion".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndType(audience, NotificationType.PROMOTION, pageable);
+        } else if ("ordered".equalsIgnoreCase(tab)) {
+            // Ordered Filter: PENDING ဖြစ်နေသော Booking Noti များ
+            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
+                    audience, BookingStatus.PENDING, customerUser.getId(), pageable);
+        } else if ("cancel".equalsIgnoreCase(tab)) {
+            // Cancel Filter: CANCELLED ဖြစ်သွားသော Booking Noti များ
+            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
+                    audience, BookingStatus.CANCELLED, customerUser.getId(), pageable);
+        } else if ("review".equalsIgnoreCase(tab)) {
+            // Review Filter: COMPLETED ဖြစ်ပြီးစီးသွားသော Booking Noti များ
+            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
+                    audience, BookingStatus.COMPLETED, customerUser.getId(), pageable);
         } else {
             results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience, pageable);
         }
@@ -172,10 +180,16 @@ public class NotificationServiceImpl implements NotificationService {
         Page<Notification> results;
 
         if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab) || "incoming".equalsIgnoreCase(tab)) {
+            // All Filter: STAFF Audience အောက်ရှိ ဒေတာအားလုံး ပြသမည်
             results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience, pageable);
-        } else if ("booking".equalsIgnoreCase(tab)) {
-            results = notificationRepository.findByTargetAudienceAndTypeAndUserId(
-                    audience, NotificationType.BOOKING, staffUser.getId(), pageable);
+        } else if ("started".equalsIgnoreCase(tab)) {
+            // Started Filter: IN_PROGRESS ဖြစ်နေသော Booking Noti များ
+            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
+                    audience, BookingStatus.IN_PROGRESS, staffUser.getId(), pageable);
+        } else if ("completed".equalsIgnoreCase(tab)) {
+            // Completed Filter: COMPLETED ဖြစ်သွားသော Booking Noti များ
+            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
+                    audience, BookingStatus.COMPLETED, staffUser.getId(), pageable);
         } else {
             results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience, pageable);
         }

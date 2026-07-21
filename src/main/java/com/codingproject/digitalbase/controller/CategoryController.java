@@ -1,7 +1,3 @@
-//
-// Source code recreated from a .class file by IntelliJ IDEA
-// (powered by Fernflower decompiler)
-//
 
 package com.codingproject.digitalbase.controller;
 
@@ -69,7 +65,7 @@ public class CategoryController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
     public ResponseEntity<Map<String, String>> deleteCategory(@PathVariable Long id) {
         this.categoryService.deleteCategory(id);
-        return ResponseEntity.ok(Map.of("message", "Category disabled successfully"));
+        return ResponseEntity.ok(Map.of("message", "Category deleted successfully"));
     }
 
     // 🌟 ၂။ Category အား ပြန်လည်ဖွင့်ပေးမည့် Restore Endpoint (အသစ်)
