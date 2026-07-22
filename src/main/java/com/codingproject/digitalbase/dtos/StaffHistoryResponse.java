@@ -13,4 +13,8 @@ public class StaffHistoryResponse {
     private Long totalJobsDone;
     private BigDecimal totalCommission;
     private List<StaffHistoryDetailResponse> historyList;
+
+    private int pageNumber;
+    private int pageSize;
+    private int totalPages;
 }

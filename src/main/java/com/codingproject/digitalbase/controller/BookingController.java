@@ -12,6 +12,9 @@ import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.ResponseEntity;
@@ -45,7 +48,9 @@ public class BookingController {
 
     @GetMapping({"/my-history"})
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<Page<BookingHistoryResponse>> getMyBookingHistory(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<Page<BookingHistoryResponse>> getMyBookingHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(this.bookingService.getMyBookingHistory(page, size));
     }
 
@@ -74,10 +79,20 @@ public class BookingController {
         return ResponseEntity.ok(this.bookingService.cancelBookingByCustomer(id, "CUSTOMER", principal.getName()));
     }
 
-    @GetMapping({"/all"})
+    @GetMapping("/all")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'STAFF')")
-    public ResponseEntity<Page<BookingResponse>> getAllBookings(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(this.bookingService.getAllBookings(page, size));
+    public ResponseEntity<Page<BookingResponse>> getAllBookings(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return ResponseEntity.ok(this.bookingService.getAllBookings(pageable));
     }
 
     @PutMapping({"/{bookingId}/assign"})

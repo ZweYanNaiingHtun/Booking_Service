@@ -69,9 +69,56 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("startDate") Instant startDate,
             Pageable pageable);
 
-    // ==========================================
-    // 📱 USER / STAFF SPECIFIC QUERIES (Service Impl အတွက် လိုအပ်သော Method များ)
-    // ==========================================
+    // 📱 CUSTOMER INBOX QUERY
+    @Query("SELECT n FROM Notification n WHERE n.targetAudience IN :audiences " +
+            "AND (n.user.id = :userId OR n.user IS NULL) " +
+            "AND (n.customerAction IS NULL OR n.customerAction <> com.codingproject.digitalbase.enums.CustomerAction.CANCELLED) " +
+            "AND (" +
+            "    n.type IN (com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, com.codingproject.digitalbase.enums.NotificationType.PROMOTION, com.codingproject.digitalbase.enums.NotificationType.REMINDER, com.codingproject.digitalbase.enums.NotificationType.ALERT) " +
+            "    OR n.bookingStatus IN (" +
+            "        com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED, " +
+            "        com.codingproject.digitalbase.enums.BookingStatus.CANCELLED, " +
+            "        com.codingproject.digitalbase.enums.BookingStatus.IN_PROGRESS, " +
+            "        com.codingproject.digitalbase.enums.BookingStatus.COMPLETED" +
+            "    )" +
+            ") " +
+            "AND (" +
+            "    :tab IS NULL OR LOWER(:tab) = 'all' OR TRIM(:tab) = '' OR " +
+            "    (LOWER(:tab) = 'booking' AND n.bookingStatus IS NOT NULL) OR " +
+            "    (LOWER(:tab) = 'promo' AND n.type = com.codingproject.digitalbase.enums.NotificationType.PROMOTION) OR " +
+            "    (LOWER(:tab) = 'announcement' AND n.type = com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT)" +
+            ") " +
+            "ORDER BY n.createdAt DESC")
+    Page<Notification> findCustomerNotificationsByTab(
+            @Param("userId") Long userId,
+            @Param("tab") String tab,
+            @Param("audiences") List<TargetAudience> audiences, // 🌟 Parameter ထည့်သွင်းထားပါသည်
+            Pageable pageable);
+
+    // 📱 STAFF INBOX QUERY
+    @Query("SELECT n FROM Notification n WHERE n.targetAudience IN :audiences " +
+            "AND (n.user.id = :userId OR n.user IS NULL) " +
+            "AND (" +
+            "    n.type IN (com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, com.codingproject.digitalbase.enums.NotificationType.PROMOTION, com.codingproject.digitalbase.enums.NotificationType.REMINDER, com.codingproject.digitalbase.enums.NotificationType.ALERT) " +
+            "    OR n.bookingStatus IN (" +
+            "        com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED, " +
+            "        com.codingproject.digitalbase.enums.BookingStatus.CANCELLED" +
+            "    )" +
+            ") " +
+            "AND (" +
+            "    :tab IS NULL OR :tab = '' OR LOWER(:tab) = 'all' OR LOWER(:tab) = 'incoming' OR " +
+            "    (LOWER(:tab) = 'confirmed' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED) OR " +
+            "    (LOWER(:tab) = 'cancelled' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.CANCELLED) OR " +
+            "    (LOWER(:tab) = 'booking' AND n.bookingStatus IS NOT NULL) OR " +
+            "    (LOWER(:tab) = 'promo' AND n.type = com.codingproject.digitalbase.enums.NotificationType.PROMOTION) OR " +
+            "    (LOWER(:tab) = 'announcement' AND n.type = com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT)" +
+            ") " +
+            "ORDER BY n.createdAt DESC")
+    Page<Notification> findStaffNotificationsByTab(
+            @Param("userId") Long userId,
+            @Param("tab") String tab,
+            @Param("audiences") List<TargetAudience> audiences, // 🌟 Parameter ထည့်သွင်းထားပါသည်
+            Pageable pageable);
 
     Page<Notification> findByTargetAudienceAndBookingStatusAndUserId(
             TargetAudience targetAudience,
@@ -80,47 +127,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             Pageable pageable
     );
 
-    Page<Notification> findByTargetAudienceAndTypeAndUserId(
-            TargetAudience targetAudience,
-            NotificationType type,
-            Long userId,
-            Pageable pageable
-    );
-
-    Page<Notification> findByTargetAudienceAndType(TargetAudience targetAudience, NotificationType type, Pageable pageable);
-
-    Page<Notification> findByTargetAudience(TargetAudience targetAudience, Pageable pageable);
-
-    @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience AND (n.user.id = :userId OR n.user IS NULL) ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n WHERE (n.targetAudience = :audience OR n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.BOTH) AND (n.user.id = :userId OR n.user IS NULL) ORDER BY n.createdAt DESC")
     Page<Notification> findNotificationsForUser(@Param("userId") Long userId, @Param("audience") TargetAudience audience, Pageable pageable);
-
-    // ==========================================
-    // 📱 LEGACY METHODS
-    // ==========================================
-
-    List<Notification> findByTargetAudienceOrderByCreatedAtDesc(TargetAudience targetAudience);
-
-    List<Notification> findByTargetAudienceAndTypeAndUserIdOrderByCreatedAtDesc(
-            TargetAudience targetAudience,
-            NotificationType type,
-            Long userId
-    );
-
-    List<Notification> findByTargetAudienceAndTypeOrderByCreatedAtDesc(TargetAudience audience, NotificationType type);
-
-    @Query("SELECT n FROM Notification n WHERE n.targetAudience = :audience " +
-            "AND (" +
-            "  n.type IN (com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, " +
-            "             com.codingproject.digitalbase.enums.NotificationType.PROMOTION) " +
-            "  OR " +
-            "  (n.type IN (com.codingproject.digitalbase.enums.NotificationType.BOOKING, " +
-            "              com.codingproject.digitalbase.enums.NotificationType.REMINDER, " +
-            "              com.codingproject.digitalbase.enums.NotificationType.ALERT) " +
-            "   AND n.user.id = :userId)" +
-            ") " +
-            "ORDER BY n.createdAt DESC")
-    List<Notification> findNotificationsForUser(
-            @Param("userId") Long userId,
-            @Param("audience") TargetAudience audience
-    );
 }

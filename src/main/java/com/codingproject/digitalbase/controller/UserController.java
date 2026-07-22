@@ -44,7 +44,7 @@ public class UserController {
 
     // ၄။ Security Tab တွင် Password ချိန်းရန် သုံးနိုင်သည့် Endpoint
     @PutMapping({"/profile/change-password"})
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF', 'ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'STAFF', 'SUPER_ADMIN')")
     public ResponseEntity<UserProfileResponse> changePassword(@AuthenticationPrincipal UserDetails userDetails, @RequestBody @Valid ChangePasswordRequest request) {
         UserProfileResponse response = this.userService.changePassword(userDetails.getUsername(), request);
         return ResponseEntity.ok(response);

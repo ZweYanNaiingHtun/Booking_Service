@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,6 +38,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final FCMService fcmService;
     private final Path uploadPath = Paths.get("uploads/notifications/");
 
     @Override
@@ -79,7 +81,25 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        log.info("📢 Notification sent out successfully to {}", request.getTargetAudience());
+        log.info("📢 Notification saved to DB for target: {}", request.getTargetAudience());
+
+        // ==========================================
+        // 🚀 FCM TOPIC REAL-TIME PUSH NOTIFICATION
+        // ==========================================
+        try {
+            if (request.getTargetAudience() == TargetAudience.CUSTOMER) {
+                fcmService.sendPushNotificationToTopic("customer-notifications", request.getTitle(), request.getMessage());
+            } else if (request.getTargetAudience() == TargetAudience.STAFF) {
+                fcmService.sendPushNotificationToTopic("staff-notifications", request.getTitle(), request.getMessage());
+            } else if (request.getTargetAudience() == TargetAudience.BOTH) {
+                // 🌟 BOTH ဖြစ်ပါက Customer နှင့် Staff Topic (၂) ခုလုံးထံ Broadcast ပို့ပေးပါမည်
+                fcmService.sendPushNotificationToTopic("customer-notifications", request.getTitle(), request.getMessage());
+                fcmService.sendPushNotificationToTopic("staff-notifications", request.getTitle(), request.getMessage());
+            }
+        } catch (Exception e) {
+            log.error("FCM Broadcast Push Notification failed: {}", e.getMessage());
+        }
+
         return mapToDTO(saved);
     }
 
@@ -142,32 +162,20 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getCustomerNotificationsByTab(String email, String tab, Pageable pageable) {
-        User customerUser = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found."));
+        User customer = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
-        TargetAudience audience = TargetAudience.CUSTOMER;
-        Page<Notification> results;
+        // 🌟 CUSTOMER ရော BOTH အဖြစ် ပို့ထားသော Noti များကိုပါ ဆွဲထုတ်မည်
+        List<TargetAudience> audiences = List.of(TargetAudience.CUSTOMER, TargetAudience.BOTH);
 
-        if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab)) {
-            // All Filter: CUSTOMER Audience အောက်ရှိ ဒေတာအားလုံး ပြသမည်
-            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience, pageable);
-        } else if ("ordered".equalsIgnoreCase(tab)) {
-            // Ordered Filter: PENDING ဖြစ်နေသော Booking Noti များ
-            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
-                    audience, BookingStatus.PENDING, customerUser.getId(), pageable);
-        } else if ("cancel".equalsIgnoreCase(tab)) {
-            // Cancel Filter: CANCELLED ဖြစ်သွားသော Booking Noti များ
-            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
-                    audience, BookingStatus.CANCELLED, customerUser.getId(), pageable);
-        } else if ("review".equalsIgnoreCase(tab)) {
-            // Review Filter: COMPLETED ဖြစ်ပြီးစီးသွားသော Booking Noti များ
-            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
-                    audience, BookingStatus.COMPLETED, customerUser.getId(), pageable);
-        } else {
-            results = notificationRepository.findNotificationsForUser(customerUser.getId(), audience, pageable);
-        }
+        Page<Notification> notifications = notificationRepository.findCustomerNotificationsByTab(
+                customer.getId(),
+                tab,
+                audiences,
+                pageable
+        );
 
-        return results.map(this::mapToDTO);
+        return notifications.map(this::mapToDTO);
     }
 
     @Override
@@ -176,23 +184,15 @@ public class NotificationServiceImpl implements NotificationService {
         User staffUser = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff member not found."));
 
-        TargetAudience audience = TargetAudience.STAFF;
-        Page<Notification> results;
+        // 🌟 STAFF ရော BOTH အဖြစ် ပို့ထားသော Noti များကိုပါ ဆွဲထုတ်မည်
+        List<TargetAudience> audiences = List.of(TargetAudience.STAFF, TargetAudience.BOTH);
 
-        if (tab == null || tab.trim().isEmpty() || "all".equalsIgnoreCase(tab) || "incoming".equalsIgnoreCase(tab)) {
-            // All Filter: STAFF Audience အောက်ရှိ ဒေတာအားလုံး ပြသမည်
-            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience, pageable);
-        } else if ("started".equalsIgnoreCase(tab)) {
-            // Started Filter: IN_PROGRESS ဖြစ်နေသော Booking Noti များ
-            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
-                    audience, BookingStatus.IN_PROGRESS, staffUser.getId(), pageable);
-        } else if ("completed".equalsIgnoreCase(tab)) {
-            // Completed Filter: COMPLETED ဖြစ်သွားသော Booking Noti များ
-            results = notificationRepository.findByTargetAudienceAndBookingStatusAndUserId(
-                    audience, BookingStatus.COMPLETED, staffUser.getId(), pageable);
-        } else {
-            results = notificationRepository.findNotificationsForUser(staffUser.getId(), audience, pageable);
-        }
+        Page<Notification> results = notificationRepository.findStaffNotificationsByTab(
+                staffUser.getId(),
+                tab,
+                audiences,
+                pageable
+        );
 
         return results.map(this::mapToDTO);
     }

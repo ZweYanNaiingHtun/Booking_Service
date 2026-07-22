@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface BookingService {
     List<StaffTimeSlotResponse> getAvailableSlotsForStaffAndDate(Long staffUserId, Long serviceId, LocalDate date);
@@ -39,7 +40,7 @@ public interface BookingService {
 
     Page<BookingHistoryResponse> getMyBookingHistory(int page, int size);
 
-    Page<BookingResponse> getAllBookings(int page, int size);
+    Page<BookingResponse> getAllBookings(Pageable pageable);
 
     List<CustomerStaffResponse> getStaffListForBooking(Long serviceId, Instant bookingDate);
 
@@ -47,7 +48,7 @@ public interface BookingService {
 
     List<StaffDutyResponse> getStaffDailyDuties(LocalDate selectedDate, BookingStatus status);
 
-    StaffHistoryResponse getStaffWorkHistory(HistoryFilter filter);
+    StaffHistoryResponse getStaffWorkHistory(HistoryFilter filter, Pageable pageable);
 
     BookingResponse getBookingById(Long id);
 }

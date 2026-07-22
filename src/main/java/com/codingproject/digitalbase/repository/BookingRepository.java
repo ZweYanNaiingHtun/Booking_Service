@@ -3,6 +3,8 @@ package com.codingproject.digitalbase.repository;
 import com.codingproject.digitalbase.dtos.MonthlyReportDTO;
 import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.model.Booking;
+
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -41,8 +43,25 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT b FROM Booking b WHERE b.assignedStaff.id = :staffProfileId AND b.bookingDate >= :startOfDay AND b.bookingDate <= :endOfDay AND b.status = :status ORDER BY b.bookingDate ASC")
     List<Booking> findStaffDutiesByDateAndStatus(@Param("staffProfileId") Long staffProfileId, @Param("startOfDay") Instant startOfDay, @Param("endOfDay") Instant endOfDay, @Param("status") BookingStatus status);
 
+    // 🌟 2. Staff History Query (Pagination ပြင်ဆင်ထားသည် - Page<Booking> + Pageable + assignedStaff)
     @Query("SELECT b FROM Booking b WHERE b.assignedStaff.id = :staffProfileId AND b.status = :status AND b.bookingDate BETWEEN :start AND :end ORDER BY b.bookingDate DESC")
-    List<Booking> findStaffHistory(@Param("staffProfileId") Long staffProfileId, @Param("status") BookingStatus status, @Param("start") Instant start, @Param("end") Instant end);
+    Page<Booking> findStaffHistory(
+            @Param("staffProfileId") Long staffProfileId,
+            @Param("status") BookingStatus status,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            Pageable pageable);
+
+    // 🌟 3. Staff Total Commission Query (Pagination သုံးထားသော်လည်း Total Commission မလွဲစေရန် DB မှ တိုက်ရိုက်တွက်ချက်ခြင်း)
+    @Query("SELECT COALESCE(SUM(b.businessService.price * 0.10), 0) FROM Booking b " +
+            "WHERE b.assignedStaff.id = :staffProfileId " +
+            "AND b.status = :status " +
+            "AND b.bookingDate BETWEEN :start AND :end")
+    BigDecimal sumCommissionByStaffAndDateRange(
+            @Param("staffProfileId") Long staffProfileId,
+            @Param("status") BookingStatus status,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.bookingDate >= :startOfDay AND b.bookingDate <= :endOfDay")
     long countTodayBookings(@Param("startOfDay") Instant startOfDay, @Param("endOfDay") Instant endOfDay);

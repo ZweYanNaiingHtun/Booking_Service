@@ -27,10 +27,12 @@ public class BookingManagementController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "7") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "bookingDate") String sortBy, // 🌟 Default အနေဖြင့် bookingDate ဖြင့် စီပါမည်
+            @RequestParam(defaultValue = "desc") String sortDir) {      // 🌟 Default အနေဖြင့် desc (အသစ်ဆုံး/အနီးဆုံး) ထိပ်ဆုံးတင်ပါမည်
 
         BookingOverviewWrapper data = this.bookingManagementService.getCustomerBookingsOverview(
-                search, status, startDate, endDate, page, size);
+                search, status, startDate, endDate, page, size, sortBy, sortDir);
 
         return ResponseEntity.ok(data);
     }

@@ -14,6 +14,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.ResponseEntity;
@@ -36,10 +38,13 @@ public class StaffDutyController {
         return ResponseEntity.ok(duties);
     }
 
-    @GetMapping({"/history"})
+    @GetMapping("/history")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<StaffHistoryResponse> getMyHistory(@RequestParam(value = "filter",defaultValue = "TODAY") HistoryFilter filter) {
-        StaffHistoryResponse history = this.bookingService.getStaffWorkHistory(filter);
+    public ResponseEntity<StaffHistoryResponse> getMyHistory(
+            @RequestParam(value = "filter", defaultValue = "TODAY") HistoryFilter filter,
+            @PageableDefault(page = 0, size = 10) Pageable pageable) {
+
+        StaffHistoryResponse history = this.bookingService.getStaffWorkHistory(filter, pageable);
         return ResponseEntity.ok(history);
     }
 }

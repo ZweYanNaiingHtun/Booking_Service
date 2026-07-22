@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -31,11 +32,11 @@ public class BookingManagementServiceImpl implements BookingManagementService {
     @Override
     @Transactional(readOnly = true)
     public BookingOverviewWrapper getCustomerBookingsOverview(
-            String search, String status, LocalDate startDate, LocalDate endDate, int page, int size) {
+            String search, String status, LocalDate startDate, LocalDate endDate,
+            int page, int size, String sortBy, String sortDir) {
 
         List<Booking> allBookings = this.bookingRepository.findAll().stream()
                 .filter(b -> b.getCustomer() != null && !"walkin@system.com".equals(b.getCustomer().getEmail()))
-                // 💡 သို့မဟုတ် b.getCustomer().getCode() ကို သုံးချင်ပါက: !"CU-WALKIN".equals(b.getCustomer().getCode())
                 .toList();
 
         // 🌟 အဆင့် (၁) - Counter တွက်ချက်ခြင်း
@@ -45,12 +46,25 @@ public class BookingManagementServiceImpl implements BookingManagementService {
         long completed = allBookings.stream().filter(b -> b.getStatus() == BookingStatus.COMPLETED).count();
         long rejected = allBookings.stream().filter(b -> b.getStatus() == BookingStatus.CANCELLED).count();
 
-        // 🌟 အဆင့် (၂) - Date Range နှင့် Status Filter ချိန်ညှိခြင်း
+        // 🌟 Sorting Comparator သတ်မှတ်ခြင်း
+        Comparator<Booking> bookingComparator;
+        switch (sortBy != null ? sortBy.toLowerCase() : "bookingdate") {
+            case "id" -> bookingComparator = Comparator.comparing(Booking::getId);
+            case "createdat" -> bookingComparator = Comparator.comparing(Booking::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "bookingdate" -> bookingComparator = Comparator.comparing(Booking::getBookingDate, Comparator.nullsLast(Comparator.naturalOrder()));
+            default -> bookingComparator = Comparator.comparing(Booking::getBookingDate, Comparator.nullsLast(Comparator.naturalOrder()));
+        }
+
+        if ("desc".equalsIgnoreCase(sortDir)) {
+            bookingComparator = bookingComparator.reversed();
+        }
+
+        // 🌟 အဆင့် (၂) - Date Range, Status Filter နှင့် Sorting ချိန်ညှိခြင်း
         List<Booking> filteredBookings = allBookings.stream()
                 .filter(b -> {
                     if (status == null || "ALL".equalsIgnoreCase(status) || status.isBlank()) return true;
                     String normalizedStatus = status.replace(" ", "_").toUpperCase();
-                    if ("REJECT".equals(normalizedStatus)) normalizedStatus = "CANCELLED"; // UI Counter နှင့် Backend Enum ချိတ်ဆက်မှု ညှိခြင်း
+                    if ("REJECT".equals(normalizedStatus)) normalizedStatus = "CANCELLED";
                     if ("CONFIRM".equals(normalizedStatus)) normalizedStatus = "CONFIRMED";
                     if ("COMPLETE".equals(normalizedStatus)) normalizedStatus = "COMPLETED";
                     return b.getStatus().name().equals(normalizedStatus);
@@ -60,14 +74,10 @@ public class BookingManagementServiceImpl implements BookingManagementService {
                     LocalDate bDate = b.getBookingDate().atZone(sysZone).toLocalDate();
 
                     if (startDate != null && endDate != null) {
-                        // ၁။ ရက်စွဲနှစ်ခုလုံး ပါလာလျှင် ကြားကာလအပိုင်းအခြားအတိုင်း စစ်ထုတ်မည်
                         return !bDate.isBefore(startDate) && !bDate.isAfter(endDate);
                     } else if (startDate != null) {
-                        // ၂။ 💡 ဆရာကြီး လိုချင်သလို endDate မပါဘဲ startDate တစ်ခုတည်း (ဥပမာ 2026-07-07) ပို့လာလျှင်
-                        // ၎င်းနေ့ရက်တစ်ရက်တည်းနှင့် ကွက်တိ တူညီသော ဘွတ်ကင်များကိုသာ ပြသမည်
                         return bDate.equals(startDate);
                     } else if (endDate != null) {
-                        // ၃။ endDate တစ်ခုတည်း ပါလာလျှင် ၎င်းရက်မတိုင်ခင်အထိ ပြသမည်
                         return !bDate.isAfter(endDate);
                     }
                     return true;
@@ -79,6 +89,7 @@ public class BookingManagementServiceImpl implements BookingManagementService {
                             (b.getBusinessService() != null && b.getBusinessService().getName().toLowerCase().contains(s)) ||
                             (b.getCustomer() != null && b.getCustomer().getFullName().toLowerCase().contains(s));
                 })
+                .sorted(bookingComparator) // 🌟 In-Memory Sorting ပြုလုပ်ခြင်း
                 .toList();
 
         // 🌟 အဆင့် (၃) - Pagination တွက်ချက်ခြင်း
@@ -91,9 +102,8 @@ public class BookingManagementServiceImpl implements BookingManagementService {
         // UI Formatter များ ပြင်ဆင်ခြင်း
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
-        NumberFormat numberFormat = NumberFormat.getNumberInstance(Locale.US);
 
-        // 🌟 အဆင့် (၄) - Response Mapping (Type အမှားအား ပြင်ဆင်ထားပါသည်)
+        // 🌟 အဆင့် (၄) - Response Mapping
         List<CustomerBookingManagementResponse> responseList = pagedBookings.stream().map(b -> {
             String custName = b.getCustomer() != null ? b.getCustomer().getFullName() : "-";
             String servName = b.getBusinessService() != null ? b.getBusinessService().getName() : "-";
@@ -117,17 +127,16 @@ public class BookingManagementServiceImpl implements BookingManagementService {
             else if (b.getStatus() == BookingStatus.COMPLETED) uiStatus = "Completed";
             else if (b.getStatus() == BookingStatus.CANCELLED) uiStatus = "Reject";
 
-            // 🌟 CustomerBookingManagementResponse ဖြင့် ကွက်တိ Build လုပ်ခြင်း
             return CustomerBookingManagementResponse.builder()
                     .id(b.getId())
-                    .code("BK-" + b.getId())            // code field သို့ ထည့်သွင်းခြင်း
-                    .bookingId("BK-" + b.getId())       // 💡 Frontend မှ bookingId တောင်းလျှင်လည်း အဆင်ပြေစေရန် ဖြည့်စွက်ခြင်း
+                    .code("BK-" + b.getId())
+                    .bookingId("BK-" + b.getId())
                     .serviceName(servName)
                     .customerName(custName)
                     .price(price)
                     .bookTime(bTimeStr)
                     .date(bDateStr)
-                    .duringTime(b.getBusinessService().getDurationInMinutes())         // b.getBusinessService().getDuration() သို့ ပြောင်းလဲနိုင်ပါသည်
+                    .duringTime(b.getBusinessService() != null ? b.getBusinessService().getDurationInMinutes() : 0)
                     .staffName(staffNameStr)
                     .status(uiStatus)
                     .build();
@@ -140,7 +149,7 @@ public class BookingManagementServiceImpl implements BookingManagementService {
                 .confirmCount(confirm)
                 .completedCount(completed)
                 .rejectedCount(rejected)
-                .bookings(responseList) // 🌟 ပြင်ဆင်ပြီးသား List အား ပို့ဆောင်ခြင်း
+                .bookings(responseList)
                 .currentPage(page)
                 .totalPages(totalPages)
                 .totalElements(totalElements)

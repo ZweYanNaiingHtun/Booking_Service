@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 public interface BookingManagementService {
     BookingOverviewWrapper getCustomerBookingsOverview(
-            String search, String status, LocalDate startDate, LocalDate endDate, int page, int size);
+            String search, String status, LocalDate startDate, LocalDate endDate, int page, int size , String sortBy, String sortDir);
 
     BookingDetailResponse getBookingDetails(Long id);
 }

@@ -9,7 +9,6 @@ import com.codingproject.digitalbase.service.CategoryService;
 import java.util.List;
 import java.util.Map;
 
-import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
