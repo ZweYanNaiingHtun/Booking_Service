@@ -11,6 +11,7 @@ import java.util.List;
 public class StaffPerformance {
 
     // ======== ေနဂိုရှိပြီးသား Core Columns ========
+    private Long userId;
     private Long staffId;
     private String staffName;
     private Long completedJobsCount; // Services Completed အဖြစ်ရော Count အဖြစ်ပါ သုံးပါမည်

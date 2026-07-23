@@ -116,9 +116,12 @@ public class BookingManagementServiceImpl implements BookingManagementService {
             String bDateStr = b.getBookingDate() != null ? dateFormatter.format(b.getBookingDate().atZone(sysZone)) : "-";
             String bTimeStr = b.getBookingDate() != null ? timeFormatter.format(b.getBookingDate().atZone(sysZone)) : "-";
 
+            // 🌟 Staff Name ရွေးချယ်မှု Logic (Assigned Staff -> Requested Staff -> Default)
             String staffNameStr = "Any Available Staff";
             if (b.getAssignedStaff() != null && b.getAssignedStaff().getUser() != null) {
                 staffNameStr = b.getAssignedStaff().getUser().getFullName();
+            } else if (b.getRequestedStaff() != null && b.getRequestedStaff().getUser() != null) {
+                staffNameStr = b.getRequestedStaff().getUser().getFullName();
             }
 
             String uiStatus = "Pending";
@@ -137,7 +140,7 @@ public class BookingManagementServiceImpl implements BookingManagementService {
                     .bookTime(bTimeStr)
                     .date(bDateStr)
                     .duringTime(b.getBusinessService() != null ? b.getBusinessService().getDurationInMinutes() : 0)
-                    .staffName(staffNameStr)
+                    .staffName(staffNameStr) // 🌟 ရွေးချယ်ထားသော Staff နာမည် မှန်ကန်စွာ ပေါ်လာမည်ဖြစ်သည်
                     .status(uiStatus)
                     .build();
         }).collect(Collectors.toList());

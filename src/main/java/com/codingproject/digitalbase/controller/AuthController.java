@@ -82,14 +82,15 @@ public class AuthController {
     @PostMapping({"/forgot-password"})
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
         this.authService.forgotPassword(request);
-        return ResponseEntity.ok("Password reset email sent");
+        return ResponseEntity.ok(Map.of("message", "Password reset email sent"));
     }
 
     @PostMapping({"/reset-password"})
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request, Principal principal) {
         this.authService.resetPassword(request, principal.getName());
-        return ResponseEntity.ok("Password reset successful");
+        return ResponseEntity.ok(Map.of("message", "Password reset successful"));
+
     }
 
     @PostMapping({"/refresh"})

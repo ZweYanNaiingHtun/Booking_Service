@@ -2,6 +2,8 @@ package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.ReviewRequest;
 import com.codingproject.digitalbase.dtos.ReviewResponse;
+import com.codingproject.digitalbase.enums.BookingStatus;
+import com.codingproject.digitalbase.enums.CustomerAction;
 import com.codingproject.digitalbase.enums.NotificationType;
 import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.exception.BadRequestException;
@@ -73,39 +75,40 @@ public class ReviewServiceImpl implements ReviewService {
         // ၂။ ဝန်ထမ်း၏ Average Star Rating အား ပြန်လည်တွက်ချက်ပြင်ဆင်ခြင်း
         List<Review> allReviewsForStaff = this.reviewRepository.findByStaffProfileId(staffProfile.getId());
         double totalStars = allReviewsForStaff.stream().mapToDouble(Review::getStarRating).sum();
-        double averageRating = totalStars / (double)allReviewsForStaff.size();
-        staffProfile.setRating((double)Math.round(averageRating * (double)10.0F) / (double)10.0F);
+        double averageRating = totalStars / (double) allReviewsForStaff.size();
+        staffProfile.setRating((double) Math.round(averageRating * (double) 10.0F) / (double) 10.0F);
         this.staffProfileRepository.save(staffProfile);
 
-        // 🚀 ၃။ Shared Metadata Payload တည်ဆောက်ခြင်း (Frontend မှ ခွဲထုတ်ဖတ်ရှုနိုင်ရန်)
+        // 🚀 ၃။ Shared Metadata Payload တည်ဆောက်ခြင်း
         Map<String, Object> reviewMetadata = new HashMap<>();
         reviewMetadata.put("bookingId", booking.getId());
         reviewMetadata.put("reviewId", savedReview.getId());
         reviewMetadata.put("starRating", request.getStarRating());
         reviewMetadata.put("customerName", currentCustomer.getFullName());
 
-        // 📢 ၄။ Customer ထံသို့ Review တင်ပေးမှု အောင်မြင်ကြောင်း Noti ပို့ခြင်း
+        // 📢 ၄။ Admin Inbox ("Incoming Customer" -> "Review" Tab) နှင့် Customer ထံသို့ Event Noti သိမ်းဆည်းခြင်း
         try {
-            notificationService.saveSystemNotification(
+            notificationService.saveCustomerEventNotification(
                     "Review Submitted! ⭐",
-                    "Thank you for your feedback! You gave a " + request.getStarRating() + "-star rating to " + staffProfile.getUser().getFullName() + ".",
-                    NotificationType.BOOKING, // 💡 အကယ်၍ Enum ထဲတွင် REVIEW သီးသန့်ရှိက လဲလှယ်နိုင်ပါသည်
-                    TargetAudience.CUSTOMER,
+                    currentCustomer.getFullName() + " gave a " + request.getStarRating() + "-star rating to " + staffProfile.getUser().getFullName() + ".",
+                    NotificationType.RATING,       // 🌟 Review ဖြစ်၍ RATING ဟု သီးသန့် ပို့ပေးသည်
+                    CustomerAction.REVIEW,
+                    BookingStatus.COMPLETED,
                     currentCustomer,
                     reviewMetadata
             );
         } catch (Exception e) {
-            log.error("Failed to send review notification to customer", e);
+            log.error("Failed to send review notification for customer event", e);
         }
 
         // 📢 ၅။ သက်ဆိုင်ရာ ဝန်ထမ်း (Staff) ထံသို့ Review အသစ်ရရှိကြောင်း Noti ပို့ခြင်း
         try {
-            notificationService.saveSystemNotification(
+            notificationService.saveStaffEventNotification(
                     "New Review Received! 📝",
-                    currentCustomer.getFullName() + " submitted a " + request.getStarRating() + "-star review for your service.",
-                    NotificationType.RATING,
-                    TargetAudience.STAFF,
-                    staffProfile.getUser(), // StaffProfile ၏ User Entity အား တိုက်ရိုက်ရယူခြင်း
+                    "You received a " + request.getStarRating() + "-star review for your service.",
+                    NotificationType.RATING,           // 🌟 Type: RATING
+                    BookingStatus.COMPLETED,           // 🌟 Status: COMPLETED
+                    staffProfile.getUser(),            // 🌟 Target Staff User
                     reviewMetadata
             );
         } catch (Exception e) {

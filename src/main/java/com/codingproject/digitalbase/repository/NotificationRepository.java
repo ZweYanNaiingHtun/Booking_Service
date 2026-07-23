@@ -99,10 +99,17 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("SELECT n FROM Notification n WHERE n.targetAudience IN :audiences " +
             "AND (n.user.id = :userId OR n.user IS NULL) " +
             "AND (" +
-            "    n.type IN (com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, com.codingproject.digitalbase.enums.NotificationType.PROMOTION, com.codingproject.digitalbase.enums.NotificationType.REMINDER, com.codingproject.digitalbase.enums.NotificationType.ALERT) " +
+            "    n.type IN (" +
+            "        com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, " +
+            "        com.codingproject.digitalbase.enums.NotificationType.PROMOTION, " +
+            "        com.codingproject.digitalbase.enums.NotificationType.REMINDER, " +
+            "        com.codingproject.digitalbase.enums.NotificationType.ALERT, " +
+            "        com.codingproject.digitalbase.enums.NotificationType.RATING" + // 🌟 1. RATING ကို ထည့်သွင်းပေးလိုက်ပါသည်
+            "    ) " +
             "    OR n.bookingStatus IN (" +
             "        com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED, " +
-            "        com.codingproject.digitalbase.enums.BookingStatus.CANCELLED" +
+            "        com.codingproject.digitalbase.enums.BookingStatus.CANCELLED, " +
+            "        com.codingproject.digitalbase.enums.BookingStatus.COMPLETED" + // 🌟 2. COMPLETED ကိုပါ ခွင့်ပြုပေးထားသည်
             "    )" +
             ") " +
             "AND (" +
@@ -111,13 +118,15 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             "    (LOWER(:tab) = 'cancelled' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.CANCELLED) OR " +
             "    (LOWER(:tab) = 'booking' AND n.bookingStatus IS NOT NULL) OR " +
             "    (LOWER(:tab) = 'promo' AND n.type = com.codingproject.digitalbase.enums.NotificationType.PROMOTION) OR " +
-            "    (LOWER(:tab) = 'announcement' AND n.type = com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT)" +
+            "    (LOWER(:tab) = 'announcement' AND n.type = com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT) OR " +
+            "    (LOWER(:tab) = 'review' AND n.type = com.codingproject.digitalbase.enums.NotificationType.RATING) OR " + // 🌟 3. Tab Review Filter
+            "    (LOWER(:tab) = 'rating' AND n.type = com.codingproject.digitalbase.enums.NotificationType.RATING)" +   // 🌟 4. Tab Rating Filter
             ") " +
             "ORDER BY n.createdAt DESC")
     Page<Notification> findStaffNotificationsByTab(
             @Param("userId") Long userId,
             @Param("tab") String tab,
-            @Param("audiences") List<TargetAudience> audiences, // 🌟 Parameter ထည့်သွင်းထားပါသည်
+            @Param("audiences") List<TargetAudience> audiences,
             Pageable pageable);
 
     Page<Notification> findByTargetAudienceAndBookingStatusAndUserId(

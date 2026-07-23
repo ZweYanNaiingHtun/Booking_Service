@@ -107,7 +107,7 @@ public class UserServiceImpl implements UserService {
             throw new BadRequestException("New password cannot be the same as your current password!");
         } else {
             user.setPassword(this.passwordEncoder.encode(request.getNewPassword()));
-            User updatedUser = (User)this.userRepository.save(user);
+            User updatedUser = this.userRepository.save(user);
             return this.mapToProfileResponse(updatedUser , null , null);
         }
     }

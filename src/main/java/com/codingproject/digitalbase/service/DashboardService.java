@@ -8,7 +8,7 @@ public interface DashboardService {
 
     List<TopServiceResponse> getTopServicesTrending(Integer month, Integer year);
 
-    List<StaffPerformance> getStaffPerformanceRanking(Integer month, Integer year);
+    StaffOverviewWrapper getStaffPerformanceRanking(Integer month, Integer year);
 
     ReportSummaryResponse getReportChartData(Integer year, Integer month, String period);
 
@@ -20,5 +20,5 @@ public interface DashboardService {
 
     PaginatedDailyOverviewResponse getMonthlyDailyOverview(Integer year, Integer month, int page, int size);
 
-    StaffPerformance getStaffPerformanceById(Long staffId);
+//    StaffPerformance getStaffPerformanceById(Long staffId);
 }

@@ -64,17 +64,17 @@ public class DashboardController {
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/staff-performance")
-    public ResponseEntity<List<StaffPerformance>> getStaffPerformance(
+    public ResponseEntity<StaffOverviewWrapper> getStaffPerformance(
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) Integer year) {
         return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking(month, year));
     }
 
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @GetMapping("/staff-performance/{id}")
-    public ResponseEntity<StaffPerformance> getStaffPerformanceById(@PathVariable Long id) {
-        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceById(id));
-    }
+//    @PreAuthorize("hasRole('SUPER_ADMIN')")
+//    @GetMapping("/staff-performance/{id}")
+//    public ResponseEntity<StaffPerformance> getStaffPerformanceById(@PathVariable Long id) {
+//        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceById(id));
+//    }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/today-bookings")

@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -203,8 +204,12 @@ public class NotificationServiceImpl implements NotificationService {
         Notification notification = notificationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found with id: " + id));
 
-        if (!notification.getUser().getEmail().equals(userEmail)) {
-            throw new BadRequestException("You are not authorized to mark this notification as read.");
+        // 🌟 Global/Broadcast Notification များတွင် notification.getUser() သည် null ဖြစ်နေနိုင်ပါသည်
+        // User သီးသန့် ပို့ထားသည့် Notification ဖြစ်မှသာ ခွင့်ပြုချက် (Authorization) စစ်ဆေးပါမည်
+        if (notification.getUser() != null) {
+            if (!notification.getUser().getEmail().equals(userEmail)) {
+                throw new BadRequestException("You are not authorized to mark this notification as read.");
+            }
         }
 
         notification.setRead(true);
@@ -250,25 +255,59 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("🚀 Auto-Notification triggered for {} ({})", targetUser.getEmail(), audience);
     }
 
-    // 🎯 System Auto Event: Customer Action ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန် (Ordered, Cancel, Review)
-    @Transactional
-    public void saveCustomerEventNotification(String title, String message, CustomerAction action, BookingStatus status, User targetUser, Map<String, Object> metadata) {
+    // 🎯 System Auto Event: Customer Action ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန် (Ordered, Cancel, Review))
+    // 🎯 System Auto Event: Customer Action ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန်
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveCustomerEventNotification(
+            String title,
+            String message,
+            NotificationType type,           // 🌟 Dynamic NotificationType
+            CustomerAction action,
+            BookingStatus status,
+            User targetUser,
+            Map<String, Object> metadata
+    ) {
         Notification notification = Notification.builder()
-                .title(title).message(message)
-                .customerAction(action).bookingStatus(status)
-                .targetAudience(TargetAudience.CUSTOMER).user(targetUser)
-                .metadata(metadata).createdAt(Instant.now()).isRead(false).build();
+                .title(title)
+                .message(message)
+                .type(type)                  // 🌟 Parameter မှ လာသော Type အတိုင်း သိမ်းဆည်းမည်
+                .customerAction(action)
+                .bookingStatus(status)
+                .targetAudience(TargetAudience.CUSTOMER)
+                .user(targetUser)
+                .metadata(metadata)
+                .createdAt(Instant.now())
+                .isRead(false)
+                .build();
+
         notificationRepository.save(notification);
     }
 
     // 🎯 System Auto Event: Staff Action ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန် (IN_PROGRESS, COMPLETED)
-    @Transactional
-    public void saveStaffEventNotification(String title, String message, BookingStatus status, User targetUser, Map<String, Object> metadata) {
+    // 🎯 System Auto Event: Staff Action/Notification ဖြစ်ရပ်များ သီးသန့်လာသိမ်းရန်
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW) // 🌟 Transaction ခွဲထုတ်ခြင်း
+    public void saveStaffEventNotification(
+            String title,
+            String message,
+            NotificationType type,
+            BookingStatus status,
+            User targetUser,
+            Map<String, Object> metadata
+    ) {
         Notification notification = Notification.builder()
-                .title(title).message(message)
-                .bookingStatus(status)
-                .targetAudience(TargetAudience.STAFF).user(targetUser)
-                .metadata(metadata).createdAt(Instant.now()).isRead(false).build();
+                .title(title)
+                .message(message)
+                .type(type)                         // 🌟 RATING / BOOKING Dynamic သတ်မှတ်ခြင်း
+                .bookingStatus(status)              // 🌟 COMPLETED သို့မဟုတ် သက်ဆိုင်ရာ Status
+                .targetAudience(TargetAudience.STAFF)
+                .user(targetUser)
+                .metadata(metadata)
+                .createdAt(Instant.now())
+                .isRead(false)
+                .build();
+
         notificationRepository.save(notification);
     }
 

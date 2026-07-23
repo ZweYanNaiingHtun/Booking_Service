@@ -15,5 +15,6 @@ public class ChangePasswordRequest {
             regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!]).*$",
             message = "Password must contain uppercase, lowercase, number and special character"
     )
+    @NotBlank(message = "Password required!")
     private String newPassword;
 }

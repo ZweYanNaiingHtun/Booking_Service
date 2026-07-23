@@ -2,6 +2,8 @@ package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.NotificationDTO;
 import com.codingproject.digitalbase.dtos.NotificationRequest;
+import com.codingproject.digitalbase.enums.BookingStatus;
+import com.codingproject.digitalbase.enums.CustomerAction;
 import com.codingproject.digitalbase.enums.NotificationType;
 import com.codingproject.digitalbase.enums.TargetAudience;
 import com.codingproject.digitalbase.model.User;
@@ -36,4 +38,17 @@ public interface NotificationService {
 
     void saveSystemNotification(String title, String message, NotificationType type,
                                 TargetAudience audience, User targetUser, Map<String, Object> metadata);
+
+    // 🌟 Customer Event Notification ကြေညာချက် ထည့်သွင်းပေးရန်
+    void saveCustomerEventNotification(String title, String message,NotificationType type, CustomerAction action, BookingStatus status, User targetUser, Map<String, Object> metadata);
+
+    // 🌟 Staff Event Notification ကြေညာချက် ပါတစ်ခါတည်း ထည့်ထားပေးပါ
+    void saveStaffEventNotification(
+            String title,
+            String message,
+            NotificationType type,          // 🌟 NotificationType တိုးလိုက်ပါ
+            BookingStatus status,
+            User targetUser,
+            Map<String, Object> metadata
+    );
 }
