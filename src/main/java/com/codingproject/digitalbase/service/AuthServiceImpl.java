@@ -225,12 +225,31 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void updateFcmToken(String email, FcmTokenRequest request) {
-        // ၁။ JWT မှတစ်ဆင့် ရရှိလာသော Email ဖြင့် အသုံးပြုသူအား ရှာဖွေခြင်း
-        User user = this.userRepository.findByEmail(email)
+        String newToken = request.getToken();
+
+        // 🎯 Valid Token မဟုတ်ပါက ရှေ့ဆက်မလုပ်ရန် စစ်ဆေးခြင်း
+        if (newToken == null || newToken.trim().isEmpty()) {
+            log.warn("FCM Token update bypassed: Token is null or blank for email: {}", email);
+            return;
+        }
+
+        // ၁။ JWT မှတစ်ဆင့် ရရှိလာသော Email ဖြင့် လက်ရှိ အသုံးပြုသူအား ရှာဖွေခြင်း
+        User currentUser = this.userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
-        // ၂။ Request Body ထဲမှ Token ကို ယူ၍ တန်ဖိုးမြှင့်တင်ခြင်း
-        user.setFcmToken(request.getToken());
+        // 🌟 ၂။ အဆိုပါ FCM Token သည် အခြား User တစ်ယောက်ယောက်ဆီမှာ ရှိနေပါက အရင် Clear (NULL) ပြုလုပ်ပေးခြင်း
+        this.userRepository.findByFcmToken(newToken).ifPresent(otherUser -> {
+            if (!otherUser.getId().equals(currentUser.getId())) {
+                otherUser.setFcmToken(null);
+                this.userRepository.save(otherUser);
+                log.info("🔑 Duplicate FCM token cleared from previous user: {}", otherUser.getEmail());
+            }
+        });
+
+        // ၃။ လက်ရှိ User ထံသို့ Token အသစ်အား သတ်မှတ်၍ DB တွင် သိမ်းဆည်းခြင်း
+        currentUser.setFcmToken(newToken);
+        this.userRepository.save(currentUser);
+        log.info("✅ FCM Token successfully updated for user: {}", currentUser.getEmail());
     }
 
     @Transactional

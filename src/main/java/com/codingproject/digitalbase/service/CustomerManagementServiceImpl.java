@@ -26,6 +26,16 @@ public class CustomerManagementServiceImpl implements CustomerManagementService 
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
 
+    private String buildProfileImagePath(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            fileName = "default-profile.png";
+        }
+        if (fileName.startsWith("/uploads/profile-pictures/")) {
+            return fileName;
+        }
+        return "/uploads/profile-pictures/" + fileName;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public Page<CustomerSummaryResponse> getCustomerList(String search, int page, int size) {
@@ -39,7 +49,7 @@ public class CustomerManagementServiceImpl implements CustomerManagementService 
                 .id(user.getId())
                 .customerId(user.getCode())
                 .customerName(user.getFullName())
-                .profilePicture(user.getProfilePicture())
+                .profilePicture(buildProfileImagePath(user.getProfilePicture())) // 🌟 Staff နည်းတူ Relative Path ဖြင့် ထွက်လာပါမည်
                 .email(user.getEmail())
                 .phoneNumber(user.getPhone())
                 .gender(user.getGender())

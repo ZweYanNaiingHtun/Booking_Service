@@ -111,8 +111,18 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public Page<NotificationDTO> getAllNotificationsByAudience(TargetAudience audience, Pageable pageable) {
         log.info("Admin UI: Fetching paged global notification history for audience: {}", audience);
-        // 🎯 ပြင်ဆင်ချက်: System Events များမပါဘဲ Admin ကိုယ်တိုင် ပို့ထားသည့် Global Broadcasts သက်သက်သာ ဆွဲထုတ်ခြင်း
-        Page<Notification> notificationPage = notificationRepository.findByTypeIsNotNullAndTargetAudienceAndUserIsNull(audience, pageable);
+
+        // 🌟 1. TargetAudience အလိုက် BOTH အား အလိုအလျောက် ပူးတွဲ ပါဝင်စေခြင်း
+        List<TargetAudience> targetAudiences = switch (audience) {
+            case STAFF -> List.of(TargetAudience.STAFF, TargetAudience.BOTH);
+            case CUSTOMER -> List.of(TargetAudience.CUSTOMER, TargetAudience.BOTH);
+            default -> List.of(audience);
+        };
+
+        // 🌟 2. TargetAudienceIn သို့ List အား ပို့ပေးခြင်း
+        Page<Notification> notificationPage = notificationRepository
+                .findByTypeIsNotNullAndTargetAudienceInAndUserIsNull(targetAudiences, pageable);
+
         return notificationPage.map(this::mapToDTO);
     }
 
@@ -262,20 +272,20 @@ public class NotificationServiceImpl implements NotificationService {
     public void saveCustomerEventNotification(
             String title,
             String message,
-            NotificationType type,           // 🌟 Dynamic NotificationType
+            NotificationType type,
             CustomerAction action,
             BookingStatus status,
-            User targetUser,
+            User targetUser,                  // Metadata / Push Noti အတွက် အသုံးပြုနိုင်ပါသည်
             Map<String, Object> metadata
     ) {
         Notification notification = Notification.builder()
                 .title(title)
                 .message(message)
-                .type(type)                  // 🌟 Parameter မှ လာသော Type အတိုင်း သိမ်းဆည်းမည်
+                .type(type)
                 .customerAction(action)
                 .bookingStatus(status)
                 .targetAudience(TargetAudience.CUSTOMER)
-                .user(targetUser)
+                .user(null)                  // 🌟 CRITICAL FIX: Admin Inbox (n.user IS NULL) ထဲ ပေါ်စေရန် null သတ်မှတ်ရပါမည်
                 .metadata(metadata)
                 .createdAt(Instant.now())
                 .isRead(false)

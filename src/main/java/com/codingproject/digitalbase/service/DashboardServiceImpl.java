@@ -5,6 +5,7 @@ import com.codingproject.digitalbase.enums.BookingStatus;
 import com.codingproject.digitalbase.model.Booking;
 import com.codingproject.digitalbase.model.BusinessService;
 import com.codingproject.digitalbase.model.StaffLeave;
+import com.codingproject.digitalbase.model.User;
 import com.codingproject.digitalbase.repository.AnalyticsRepository;
 import com.codingproject.digitalbase.repository.BookingRepository;
 import com.codingproject.digitalbase.repository.StaffLeaveRepository;
@@ -127,63 +128,78 @@ public class DashboardServiceImpl implements DashboardService {
         List<StaffPerformance> basicMetrics = this.analyticsRepository.getStaffPerformanceMetrics();
         List<com.codingproject.digitalbase.model.StaffProfile> staffProfiles = this.staffProfileRepository.findAll();
 
+        // 🌟 [ADDED] ယနေ့ ခွင့် (Leave) / Day Off ယူထားသော Staff များကို DB ထဲမှ Fetch ပြုလုပ်ခြင်း
+        Instant today = Instant.now();
+        List<StaffLeave> activeLeavesToday = this.staffLeaveRepository.findActiveLeavesAt(today);
+
         List<StaffPerformance> staffList = basicMetrics.stream()
                 .map(metric -> {
                     staffProfiles.stream()
                             .filter(profile -> profile.getId().equals(metric.getStaffId()))
                             .findFirst()
                             .ifPresent(profile -> {
-                                // Basic Staff Info Mapping
-                                metric.setStaffCode("St-00" + profile.getId());
+                                // Staff Code & Role
+                                String staffCode = (profile.getUser() != null && profile.getUser().getCode() != null)
+                                        ? profile.getUser().getCode()
+                                        : "St-00" + profile.getId();
+                                metric.setStaffCode(staffCode);
                                 metric.setStaffRole("Nail Artist");
-                                metric.setProfileImage("https://api.mari.com/uploads/" + profile.getId() + ".jpg");
 
+                                // 🌟 User Entity ထဲမှ Profile Picture နှင့် အချက်အလက်များ Mapping ပြုလုပ်ခြင်း
                                 if (profile.getUser() != null) {
-                                    metric.setUserId(profile.getUser().getId()); // 🌟 User ID ထည့်သွင်းခြင်း (Staff termination အတွက်)
-                                    metric.setStaffName(profile.getUser().getFullName()); // 🌟 Staff Name
-                                    metric.setPhoneNumber(profile.getUser().getPhone());
-                                    metric.setEmail(profile.getUser().getEmail());
-                                }
+                                    User user = profile.getUser();
 
-                                if (profile.getUser() != null) {
-                                    metric.setUserId(profile.getUser().getId());
-                                    metric.setStaffName(profile.getUser().getFullName());
-                                    metric.setPhoneNumber(profile.getUser().getPhone());
-                                    metric.setEmail(profile.getUser().getEmail());
+                                    metric.setUserId(user.getId());
+                                    metric.setStaffName(user.getFullName());
+                                    metric.setPhoneNumber(user.getPhone());
+                                    metric.setEmail(user.getEmail());
 
-                                    // 🌟 Replace hardcoded DOB with actual data from User entity
-                                    // Check if dob exists to avoid NullPointerException
-                                    if(profile.getUser().getDateOfBirth() != null) {
-                                        LocalDate dob = profile.getUser().getDateOfBirth()
-                                                .atZone(yangonZone) // သို့မဟုတ် ZoneId.systemDefault()
-                                                .toLocalDate();
+                                    // 🎯 Profile Picture
+                                    String rawPhoto = user.getProfilePicture();
+                                    String photoFileName = (rawPhoto != null && !rawPhoto.isBlank())
+                                            ? rawPhoto
+                                            : "default-profile.png";
 
+                                    String relativePath = photoFileName.startsWith("/uploads/profile-pictures/")
+                                            ? photoFileName
+                                            : "/uploads/profile-pictures/" + photoFileName;
+
+                                    metric.setProfileImage(relativePath);
+
+                                    // 🎯 Date of Birth Mapping
+                                    if (user.getDateOfBirth() != null) {
+                                        LocalDate dob = user.getDateOfBirth().atZone(yangonZone).toLocalDate();
                                         metric.setDateOfBirth(dob);
                                     } else {
-                                        metric.setDateOfBirth(null); // Or set a default placeholder if you prefer
+                                        metric.setDateOfBirth(null);
                                     }
-                                }
 
-// 🌟 Replace hardcoded Joined Date with actual data from StaffProfile (or User)
-// Assuming StaffProfile has a 'createdAt' or 'joinedDate' field
-                                if(profile.getUser().getCreatedAt() != null) {
-                                    LocalDate joinedDate = profile.getUser().getCreatedAt()
-                                            .atZone(yangonZone) // သို့မဟုတ် ZoneId.systemDefault()
-                                            .toLocalDate();
-
-                                    metric.setJoinedDate(joinedDate);
+                                    // 🎯 Joined Date Mapping
+                                    if (user.getCreatedAt() != null) {
+                                        LocalDate joinedDate = user.getCreatedAt().atZone(yangonZone).toLocalDate();
+                                        metric.setJoinedDate(joinedDate);
+                                    } else {
+                                        metric.setDateOfBirth(null);
+                                    }
                                 } else {
-                                    metric.setJoinedDate(null);
+                                    metric.setProfileImage("/uploads/profile-pictures/default-profile.png");
                                 }
 
-                                // Status Mapping Logic
+                                // 🌟 [FIXED] Status Mapping Logic (Day Off / Leave စစ်ဆေးချက် ထည့်သွင်းထားသည်)
                                 boolean isAccountActive = profile.getUser() != null && profile.getUser().isEnabled();
                                 boolean isStaffAvailable = profile.isAvailable();
                                 boolean hasActiveJob = profile.getAssignedBookings() != null && profile.getAssignedBookings().stream()
                                         .anyMatch(b -> b.getStatus() == BookingStatus.IN_PROGRESS);
 
+                                // ယနေ့ ခွင့် / Day Off ယူထားခြင်း ရှိမရှိ စစ်ဆေးခြင်း
+                                boolean isOnLeaveToday = activeLeavesToday != null && activeLeavesToday.stream()
+                                        .anyMatch(l -> l.getStaffProfile() != null && l.getStaffProfile().getId().equals(profile.getId()));
+
                                 if (!isAccountActive) {
                                     metric.setStatus("Inactive");
+                                } else if (isOnLeaveToday) {
+                                    // 🎯 Day Off သို့မဟုတ် Leave ယူထားပါက In Progress ထဲ မပါစေဘဲ Unavailable အဖြစ် သတ်မှတ်မည်
+                                    metric.setStatus("Unavailable");
                                 } else if (hasActiveJob) {
                                     metric.setStatus("In Progress");
                                 } else if (!isStaffAvailable) {
@@ -196,12 +212,12 @@ public class DashboardServiceImpl implements DashboardService {
                                 if (profile.getSpecializedServices() != null) {
                                     metric.setSpecializedServiceIds(
                                             profile.getSpecializedServices().stream()
-                                                    .map(s -> s.getId())
+                                                    .map(BusinessService::getId)
                                                     .toList()
                                     );
                                 }
 
-                                // 🌟 ရွေးချယ်ထားသော လအလိုက် Completed Bookings filter ပြုလုပ်ခြင်း
+                                // ရွေးချယ်ထားသော လအလိုက် Completed Bookings filter ပြုလုပ်ခြင်း
                                 if (profile.getAssignedBookings() != null) {
                                     List<Booking> completedBookings = profile.getAssignedBookings().stream()
                                             .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
@@ -213,10 +229,10 @@ public class DashboardServiceImpl implements DashboardService {
                                             })
                                             .toList();
 
-                                    // 🌟 Completed Jobs Count တွက်ချက်ခြင်း
-                                    metric.setCompletedJobsCount(Long.valueOf(completedBookings.size()));
+                                    // Completed Jobs Count တွက်ချက်ခြင်း
+                                    metric.setCompletedJobsCount((long) completedBookings.size());
 
-                                    // 🌟 Revenue & Commission တွက်ချက်ခြင်း
+                                    // Revenue & Commission တွက်ချက်ခြင်း
                                     double revenue = completedBookings.stream()
                                             .filter(b -> b.getPayment() != null && b.getPayment().getAmount() != null)
                                             .mapToDouble(b -> b.getPayment().getAmount().doubleValue())
@@ -640,14 +656,17 @@ public class DashboardServiceImpl implements DashboardService {
                 .build();
     }
 
-//    @Override
-//    public StaffPerformance getStaffPerformanceById(Long staffId) {
-//        LocalDate today = LocalDate.now(yangonZone);
-//        return this.getStaffPerformanceRanking(today.getMonthValue(), today.getYear()).stream()
-//                .filter(metric -> metric.getStaffId().equals(staffId))
-//                .findFirst()
-//                .orElseThrow(() -> new com.codingproject.digitalbase.exception.ResourceNotFoundException("Staff not found: " + staffId));
-//    }
+    @Override
+    public StaffPerformance getStaffPerformanceById(Long staffId) {
+        LocalDate today = LocalDate.now(yangonZone);
+
+        return this.getStaffPerformanceRanking(today.getMonthValue(), today.getYear())
+                .getStaffList() // 🌟 Wrapper ထဲမှ staffList (List<StaffPerformance>) ကို အရင်ထုတ်ယူရပါမည်
+                .stream()
+                .filter(metric -> metric.getStaffId() != null && metric.getStaffId().equals(staffId))
+                .findFirst()
+                .orElseThrow(() -> new com.codingproject.digitalbase.exception.ResourceNotFoundException("Staff not found: " + staffId));
+    }
 
     private double calculateGrowth(double current, double previous) {
         if (previous == 0) return current > 0 ? 100.0 : 0.0;

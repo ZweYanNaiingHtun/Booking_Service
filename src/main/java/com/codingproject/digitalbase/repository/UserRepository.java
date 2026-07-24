@@ -17,10 +17,8 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    Boolean existsByCode(String code);
     Optional<User> findByEmail(String email);
     int deleteByEnabledFalseAndCreatedAtBefore(Instant timeLimit);
-    Optional<User> findByVerificationToken(String token);
     boolean existsByEmail(String superAdminEmail);
     Optional<User> findByPhone(@NotBlank(message = "Customer phone number is required for walk-in booking") String customerPhone);
     boolean existsByPhone(String phone);
@@ -46,15 +44,28 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT COUNT(u) FROM User u JOIN u.roles r WHERE r.role = 'CUSTOMER' AND u.enabled = false")
     long countBlockedCustomers();
 
-    // 🌟 [FIXED] Import မှန်ကန်သွားပြီဖြစ်၍ ယခု Query သည် ကောင်းမွန်စွာ အလုပ်လုပ်ပါမည်
-    @Query("SELECT u FROM User u JOIN u.roles r WHERE r.role = com.codingproject.digitalbase.enums.RoleName.CUSTOMER AND " +
-            "(:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "OR u.phone LIKE CONCAT('%', :search, '%'))")
+    // 🌟 1. Active Customer များအတွက် (Enabled = true + Role = CUSTOMER + ID/Email/Phone/Name Search)
+    @Query("SELECT u FROM User u JOIN u.roles r WHERE r.role = com.codingproject.digitalbase.enums.RoleName.CUSTOMER " +
+            "AND u.enabled = true " +
+            "AND (:search IS NULL OR TRIM(:search) = '' OR " +
+            "     LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(u.phone) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(u.code) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> searchCustomers(@Param("search") String search, Pageable pageable);
 
-    // 🌟 [ADDED] Blocked Customer များကိုသာ ရှာဖွေပြီး Page အလိုက် ဆွဲထုတ်မည့် Query
-    @Query("SELECT u FROM User u WHERE u.enabled = false " +
-            "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "OR LOWER(u.phone) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
+
+    // 🌟 2. Blocked Customer များအတွက် (Enabled = false + Role = CUSTOMER + ID/Email/Phone/Name Search)
+    @Query("SELECT u FROM User u JOIN u.roles r WHERE r.role = com.codingproject.digitalbase.enums.RoleName.CUSTOMER " +
+            "AND u.enabled = false " +
+            "AND (:search IS NULL OR TRIM(:search) = '' OR " +
+            "     LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(u.phone) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(u.code) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> searchBlockedCustomers(@Param("search") String search, Pageable pageable);
+
+    Optional<User> findByFcmToken(String fcmToken);
+
+    // 🌟 1. Active Customers များကို Name, Phone, Email, Customer Code တို့ဖြင့် ရှာဖွေခြင်
 }

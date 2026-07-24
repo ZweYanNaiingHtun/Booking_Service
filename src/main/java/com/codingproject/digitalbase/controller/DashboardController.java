@@ -70,11 +70,11 @@ public class DashboardController {
         return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking(month, year));
     }
 
-//    @PreAuthorize("hasRole('SUPER_ADMIN')")
-//    @GetMapping("/staff-performance/{id}")
-//    public ResponseEntity<StaffPerformance> getStaffPerformanceById(@PathVariable Long id) {
-//        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceById(id));
-//    }
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/staff-performance/{id}")
+    public ResponseEntity<StaffPerformance> getStaffPerformanceById(@PathVariable Long id) {
+        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceById(id));
+    }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/today-bookings")

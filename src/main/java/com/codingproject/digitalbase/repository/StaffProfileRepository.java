@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface StaffProfileRepository extends JpaRepository<StaffProfile, Long> {
 
+    @Query("SELECT sp FROM StaffProfile sp WHERE sp.isAvailable = true AND sp.user.enabled = true")
+    List<StaffProfile> findAllActiveStaffProfiles();
     // 🌟 နည်းလမ်း (၁) - အကြံပြုလိုသော မက်သတ် (Time Slot အလိုက် အားတဲ့သူကို တိုက်ရိုက်ရှာပေးခြင်း)
     // Service layer မှာ busyStaffIds တွေကို လိုက်ရှာပြီး List ထဲထည့်စရာ မလိုတော့ပါဘူးဗျာ။
     @Query("SELECT sp FROM StaffProfile sp WHERE sp.isAvailable = true AND sp.user.id NOT IN (" +

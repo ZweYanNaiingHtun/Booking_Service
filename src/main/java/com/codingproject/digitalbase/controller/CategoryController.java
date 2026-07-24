@@ -33,7 +33,7 @@ public class CategoryController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'STAFF', 'CUSTOMER')")
     public ResponseEntity<List<CategoryResponse>> getAllCategories() {
-        List<CategoryResponse> responses = this.categoryService.getAllCategories().stream().map((category) -> new CategoryResponse(category.getId(), category.getName())).toList();
+        List<CategoryResponse> responses = this.categoryService.getAllCategories().stream().map((category) -> new CategoryResponse(category.getId(), category.getName(),category.isEnabled())).toList();
         return ResponseEntity.ok(responses);
     }
 
@@ -47,7 +47,7 @@ public class CategoryController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
     public ResponseEntity<CategoryResponse> createCategory(@RequestBody CategoryRequest request) {
         Category category = this.categoryService.createCategory(request);
-        CategoryResponse response = new CategoryResponse(category.getId(), category.getName());
+        CategoryResponse response = new CategoryResponse(category.getId(), category.getName() , category.isEnabled());
         return new ResponseEntity(response, HttpStatus.CREATED);
     }
 
@@ -55,7 +55,7 @@ public class CategoryController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
     public ResponseEntity<CategoryResponse> updateCategory(@PathVariable Long id, @RequestBody CategoryRequest request) {
         Category category = this.categoryService.updateCategory(id, request);
-        CategoryResponse response = new CategoryResponse(category.getId(), category.getName());
+        CategoryResponse response = new CategoryResponse(category.getId(), category.getName() , category.isEnabled());
         return ResponseEntity.ok(response);
     }
 

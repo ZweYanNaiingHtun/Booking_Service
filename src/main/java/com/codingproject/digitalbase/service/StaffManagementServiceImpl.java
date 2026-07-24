@@ -262,17 +262,20 @@ public class StaffManagementServiceImpl implements StaffManagementService {
 
     @Override
     public DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate) {
-        // ၁။ ဝန်ထမ်းအားလုံးကို Fetch လုပ်ခြင်း
-        List<StaffProfile> allStaff = staffProfileRepository.findAll();
+        // 🌟 ၁။ Terminated / Inactive မဟုတ်သော Active ဝန်ထမ်းများကိုသာ Fetch လုပ်ခြင်း
+        // (IsAvailable = true နှင့် User Enabled = true ဖြစ်သူများကိုသာ ယူမည်)
+        List<StaffProfile> allActiveStaff = staffProfileRepository.findByIsAvailableTrue().stream()
+                .filter(staff -> staff.getUser() != null && staff.getUser().isEnabled())
+                .toList();
 
-        // 🎯 🌟 [OPTIMIZED] findAll() အစား Target နေ့နှင့် ငြိနေသော ခွင့်များကိုသာ DB ထဲမှ တိုက်ရိုက်ဆွဲထုတ်ခြင်း
+        // 🎯 Target နေ့နှင့် ငြိနေသော ခွင့်များကိုသာ DB ထဲမှ တိုက်ရိုက်ဆွဲထုတ်ခြင်း
         List<StaffLeave> activeLeaves = staffLeaveRepository.findActiveLeavesAt(targetDate);
 
         List<DailyStaffStatusResponse.StaffStatusDTO> activeStaff = new ArrayList<>();
         List<DailyStaffStatusResponse.StaffStatusDTO> dayOffStaff = new ArrayList<>();
         List<DailyStaffStatusResponse.StaffStatusDTO> leaveStaff = new ArrayList<>();
 
-        for (StaffProfile staff : allStaff) {
+        for (StaffProfile staff : allActiveStaff) {
             // အဆိုပါ ဝန်ထမ်းသည် ယနေ့ ခွင့်ယူထားခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
             StaffLeave staffLeave = activeLeaves.stream()
                     .filter(l -> l.getStaffProfile().getId().equals(staff.getId()))

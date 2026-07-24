@@ -20,5 +20,5 @@ public interface DashboardService {
 
     PaginatedDailyOverviewResponse getMonthlyDailyOverview(Integer year, Integer month, int page, int size);
 
-//    StaffPerformance getStaffPerformanceById(Long staffId);
+    StaffPerformance getStaffPerformanceById(Long staffId);
 }
