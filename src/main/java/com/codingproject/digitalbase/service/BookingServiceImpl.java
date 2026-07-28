@@ -58,6 +58,7 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentRepository paymentRepository;
     private final AuthService authService;
     private final NotificationRepository notificationRepository;
+    private final StaffLeaveRepository staffLeaveRepository;
 
     // Define a reusable DateTimeFormatter at class level for push notification
     private static final DateTimeFormatter DISPLAY_DATE_FORMATTER =
@@ -96,20 +97,30 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
         Integer duration = service.getDurationInMinutes();
 
+        // 🌟 ၁။ userId မှတစ်ဆင့် StaffProfile Entity ကို ရှာဖွေပြီး staffProfileId ကို ယူခြင်း
+        // (staff_leave Table တွင် staff_profile_id ဖြင့် စစ်ဆေးရန်အတွက် ဖြစ်ပါသည်)
+        StaffProfile staffProfile = staffProfileRepository.findByUserId(staffUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff profile not found for userId: " + staffUserId));
+        Long staffProfileId = staffProfile.getId(); // Profile ID = 9
+
         LocalTime openingTime = LocalTime.of(9, 0);
-        LocalTime closingTime = LocalTime.of(20, 0); // 08:00 PM Close
-        int slotIntervalMinutes = 60; // ၁ နာရီ Rigid Slot စနစ်
+        LocalTime closingTime = LocalTime.of(20, 0);
+        int slotIntervalMinutes = 60;
         int bufferMinutes = 10;
 
         ZoneId zoneId = ZoneId.of("Asia/Yangon");
 
         // =========================================================================
-        // 🌟 [PERFORMANCE UPDATE] Loop အပြင်ဘက်တွင် တစ်နေ့တာလုံးစာ ဒေတာကို DB မှ တစ်ကြိမ်တည်း ကြိုတင်ဆွဲထုတ်ခြင်း
+        // 🌟 Loop အပြင်ဘက်တွင် ဒေတာများ ကြိုတင်ဆွဲထုတ်ခြင်း
         // =========================================================================
         Instant startOfDay = date.atStartOfDay(zoneId).toInstant();
         Instant endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant();
 
-        // ဒီနေ့ရက်အတွက်ရှိသမျှ PENDING Bookings အားလုံးကို DB ကနေ ၁ ကြိမ်ပဲ ဆွဲယူပါတော့မယ်
+        // 🌟 ၂။ Staff Leave Check (staff_profile_id ဖြင့် စစ်ဆေးသည်)
+        boolean isStaffOnLeave = staffLeaveRepository.existsOverlappingLeave(
+                staffProfileId, startOfDay, endOfDay);
+
+        // 🌟 ၃။ Pending Bookings (userId ဖြင့် Filter လုပ်ရန် ကြိုဆွဲထားသည်)
         List<Booking> dailyPendingBookings = bookingRepository.findByStatusAndBookingDateBetween(
                 BookingStatus.PENDING, startOfDay, endOfDay);
         // =========================================================================
@@ -132,12 +143,13 @@ public class BookingServiceImpl implements BookingService {
             Instant staffStartTimeBound = slotStartInstant.minus(Duration.ofMinutes(bufferMinutes));
             Instant staffEndTimeBound = slotEndInstant.plus(Duration.ofMinutes(bufferMinutes));
 
-            // ၁။ Confirmed ဖြစ်ပြီးသား အလုပ်ရှိမရှိ စစ်ဆေးခြင်း
+            // ၄။ Confirmed Booking စစ်ဆေးခြင်း (userId ဖြင့် စစ်ပါသည်)
             boolean isStaffBusy = staffAssignmentRepository.isStaffBusy(staffUserId, staffStartTimeBound, staffEndTimeBound);
 
-            // 🌟 ၂။ [In-Memory Overlap Check] DB သို့ မသွားတော့ဘဲ ကြိုဆွဲထားသော List ထဲမှ Java Memory ပေါ်တွင်တင် Filter စစ်ခြင်း
+            // ၅။ Pending Booking စစ်ဆေးခြင်း (userId ဖြင့် စစ်ပါသည်)
             boolean isRequestedByOtherPending = dailyPendingBookings.stream()
-                    .filter(pb -> pb.getRequestedStaff() != null && pb.getRequestedStaff().getUser().getId().equals(staffUserId))
+                    .filter(pb -> pb.getRequestedStaff() != null &&
+                            pb.getRequestedStaff().getUser().getId().equals(staffUserId)) // 🎯 userId (22) ကို စစ်ဆေးထားပါသည်
                     .anyMatch(pb -> {
                         Instant pbBookingDate = pb.getBookingDate();
                         Instant pbStaffStart = pbBookingDate.minus(Duration.ofMinutes(bufferMinutes));
@@ -145,11 +157,11 @@ public class BookingServiceImpl implements BookingService {
                         int pbDuration = pb.getBusinessService().getDurationInMinutes();
                         Instant pbStaffEnd = pbBookingDate.plus(Duration.ofMinutes(pbDuration + bufferMinutes));
 
-                        // Interval Overlap Formula: (StartA < EndB && EndA > StartB)
                         return staffStartTimeBound.isBefore(pbStaffEnd) && staffEndTimeBound.isAfter(pbStaffStart);
                     });
 
-            boolean isAvailable = !isStaffBusy && !isRequestedByOtherPending;
+            // 🌟 ၆။ Available Slot ဆုံးဖြတ်ခြင်း
+            boolean isAvailable = !isStaffOnLeave && !isStaffBusy && !isRequestedByOtherPending;
 
             timeSlots.add(StaffTimeSlotResponse.builder()
                     .timeLabel(customerStartTime.format(timeFormatter))
@@ -1050,21 +1062,27 @@ public class BookingServiceImpl implements BookingService {
         // Active ဖြစ်သော Staff များကို ယူခြင်း
         List<StaffProfile> activeProfiles = staffProfileRepository.findByIsAvailableTrue();
 
-        // ၃။ Helper Method သို့ Instant Parameters များ ပေးပို့ခြင်း
+        // ၃။ Overlapping Pending Bookings များကို ဆွဲထုတ်ခြင်း
         List<Booking> overlappingPendingBookings = getOverlappingPendingBookings(bookingDate, staffStartTime, staffEndTime, bufferMinutes);
 
         return activeProfiles.stream()
-                // 🎯 🌟 Fix: ရွေးချယ်ထားသော ရက်တွင် Day Off/ခွင့် ရှိသည့် ဝန်ထမ်းများကို စာရင်းထဲမှ လုံးဝ ဖယ်ထုတ်ခြင်း
-                .filter(profile -> !isStaffOnLeave(profile, bookingDate))
+                // 🎯 .filter() ကို ဖယ်ထုတ်လိုက်သည့်အတွက် Staff အားလုံး စာရင်းထဲတွင် ပေါ်နေမည် ဖြစ်သည်
                 .map(profile -> {
                     Long staffUserId = profile.getUser().getId();
                     Long staffProfileId = profile.getId();
 
+                    // 🌟 ၁။ ဝန်ထမ်း ခွင့်ယူထားခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
+                    boolean isOnLeave = isStaffOnLeave(profile, bookingDate);
+
+                    // 🌟 ၂။ Confirmed အလုပ်ရှိမရှိ စစ်ဆေးခြင်း
                     boolean isStaffBusy = staffAssignmentRepository.isStaffBusy(staffUserId, staffStartTime, staffEndTime);
+
+                    // 🌟 ၃။ အခြား Pending Request ရှိမရှိ စစ်ဆေးခြင်း
                     boolean isRequestedByOtherPending = overlappingPendingBookings.stream()
                             .anyMatch(pb -> pb.getRequestedStaff() != null && pb.getRequestedStaff().getUser().getId().equals(staffUserId));
 
-                    boolean isAvailable = !isStaffBusy && !isRequestedByOtherPending;
+                    // 🎯 ခွင့်ယူထားလျှင် သို့မဟုတ် အလုပ်မအားလျှင် သို့မဟုတ် Pending ရှိလျှင် isAvailable = false ဖြစ်မည်
+                    boolean isAvailable = !isOnLeave && !isStaffBusy && !isRequestedByOtherPending;
 
                     long confirmedCount = staffAssignmentRepository.countConfirmedByStaffUserId(staffUserId);
                     long pendingCount = bookingRepository.countPendingByStaffProfileId(staffProfileId);

@@ -86,8 +86,6 @@ public class StaffManagementController {
     @PostMapping("/assign")
     public ResponseEntity<Map<String, String>> assignLeave(@Valid @RequestBody StaffLeaveRequest request) {
         this.staffService.assignStaffLeave(request);
-
-        // Map.of() ကိုသုံးပြီး message တစ်ခုတည်းကို JSON Object အဖြစ် ပြန်ပို့ခြင်း
         return ResponseEntity.ok(Map.of("message", "Staff leave assigned successfully!"));
     }
 

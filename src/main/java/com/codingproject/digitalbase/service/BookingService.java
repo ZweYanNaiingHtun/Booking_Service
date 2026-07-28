@@ -28,9 +28,7 @@ public interface BookingService {
 
     BookingResponse cancelBookingByCustomer(Long id, String cancelledBy, String userEmail);
 
-    void assignStaffToBooking(Long bookingId, @NotNull(
-            message = "Staff ID is required"
-    ) Long staffId);
+    void assignStaffToBooking(Long bookingId, @NotNull(message = "Staff ID is required") Long staffId);
 
     BookingResponse acceptBooking(Long id);
 

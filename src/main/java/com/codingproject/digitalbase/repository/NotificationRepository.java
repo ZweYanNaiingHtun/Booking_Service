@@ -18,23 +18,19 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-
-    // 🎯 Admin ကိုယ်တိုက် ပို့ထားသော Global Broadcast Notification များကိုသာ ဆွဲထုတ်ရန်
+    // 🎯 Admin ကိုယ်တိုင် ပို့ထားသော Global Broadcast Notification များကိုသာ ဆွဲထုတ်ရန်
     Page<Notification> findByIsBroadcastTrueAndTargetAudienceInAndUserIsNull(
             List<TargetAudience> targetAudiences,
             Pageable pageable
     );
 
-
     // ==========================================
     // 📥 UI - ADMIN INBOX DRAWER (System Actions & Events Filter များ)
     // ==========================================
 
-    // 🎯 Incoming Customer Tab Filter (Only ALLOWS: Ordered, Cancel, Review)
-    // ⚠️ 'CONFIRMED' State Noti များကို 'All' ရွေးထားချိန်တွင် ပါမလာစေရန် ပိတ်ထားပါသည်
-    // 🎯 ADMIN PANEL - INCOMING CUSTOMER INBOX QUERY (FIXED)
+    // 🎯 ADMIN PANEL - INCOMING CUSTOMER INBOX QUERY
     @Query("SELECT n FROM Notification n WHERE n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.CUSTOMER " +
-            "AND n.user IS NULL " + // 🌟 Admin Inbox အတွက် user = null ဖြစ်သော Noti များသာ ယူမည်
+            "AND n.user IS NULL " +
             "AND (:startDate IS NULL OR n.createdAt >= :startDate) " +
             "AND (" +
             "    /* 1. ORDERED TAB: Booking Status PENDING သို့မဟုတ် customerAction ORDERED */ " +
@@ -66,19 +62,15 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("startDate") Instant startDate,
             Pageable pageable);
 
-    // 🎯 Incoming Staff Tab Filter (Only ALLOWS: Started, Completed)
-    // ⚠️ 'CANCELLED' / 'CancelByCustomer' Noti များကို လုံးဝ ပယ်ထုတ်ထားပါသည်
-    // 🎯 Incoming Staff Tab Filter (Allows: STAFF & BOTH audiences for Started, Completed)
-    // 🎯 ADMIN PANEL - INCOMING STAFF INBOX QUERY (FIXED)
+    // 🎯 ADMIN PANEL - INCOMING STAFF INBOX QUERY (FIXED Bug for Started Tab)
     @Query("SELECT n FROM Notification n WHERE " +
             "(n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.STAFF OR " +
             " n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.BOTH) " +
-            "AND n.user IS NULL " + // 🌟 1. Staff မိုဘိုင်း App သို့ သီးသန့် ပို့ထားသော Personal Noti များ မပါစေရန်
-            "AND n.type <> com.codingproject.digitalbase.enums.NotificationType.RATING " + // 🌟 2. Review/Rating Noti များ Incoming Staff ထဲ မဝင်စေရန်
+            "AND (n.type IS NULL OR n.type <> com.codingproject.digitalbase.enums.NotificationType.RATING) " + // 🌟 Rating Noti မပါစေရန် & Null Safe Check
             "AND (:startDate IS NULL OR n.createdAt >= :startDate) " +
             "AND (" +
-            "    /* STARTED TAB: Staff လုပ်ငန်းစတင်သည့် Noti များ */ " +
-            "    (LOWER(:tab) = 'started' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.IN_PROGRESS) OR " +
+            "    /* STARTED TAB: Staff လုပ်ငန်းစတင်သည့် Noti များ ('started' သို့မဟုတ် 'in_progress' နှစ်ခုလုံး လက်ခံသည်) */ " +
+            "    ((LOWER(:tab) = 'started' OR LOWER(:tab) = 'in_progress') AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.IN_PROGRESS) OR " +
             "    /* COMPLETED TAB: Staff လုပ်ငန်းပြီးစီးသည့် Operational Noti များ */ " +
             "    (LOWER(:tab) = 'completed' AND n.bookingStatus = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED) OR " +
             "    /* ALL / INCOMING TAB */ " +
@@ -94,13 +86,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             Pageable pageable);
 
     // =========================================================================
-// 📱 1. CUSTOMER INBOX QUERY
-// (Confirm, Started/In-Progress, Completed များသာ ရရှိမည်)
-// =========================================================================
+    // 📱 1. CUSTOMER INBOX QUERY
+    // =========================================================================
     @Query("SELECT n FROM Notification n WHERE n.targetAudience IN :audiences " +
             "AND (n.customerAction IS NULL OR n.customerAction <> com.codingproject.digitalbase.enums.CustomerAction.CANCELLED) " +
             "AND (" +
-            "    /* Global Broadcast Notifications (Announcement, Promo, Reminder, Alert) */ " +
+            "    /* Global Broadcast Notifications */ " +
             "    (n.type IN (" +
             "        com.codingproject.digitalbase.enums.NotificationType.ANNOUNCEMENT, " +
             "        com.codingproject.digitalbase.enums.NotificationType.PROMOTION, " +
@@ -108,7 +99,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             "        com.codingproject.digitalbase.enums.NotificationType.ALERT" +
             "    ) AND (n.user.id = :userId OR n.user IS NULL)) " +
             "    OR " +
-            "    /* Personal Booking Updates ONLY for this Customer (Confirmed, Started, Completed) */ " +
+            "    /* Personal Booking Updates ONLY for this Customer */ " +
             "    (n.bookingStatus IN (" +
             "        com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED, " +
             "        com.codingproject.digitalbase.enums.BookingStatus.IN_PROGRESS, " +
@@ -128,11 +119,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("audiences") List<TargetAudience> audiences,
             Pageable pageable);
 
-
     // =========================================================================
-// 📱 2. STAFF INBOX QUERY
-// (Confirm နှင့် Cancel State များသာ ရရှိမည်)
-// =========================================================================
+    // 📱 2. STAFF INBOX QUERY
+    // =========================================================================
     @Query("SELECT n FROM Notification n WHERE n.targetAudience IN :audiences " +
             "AND (" +
             "    /* Global Broadcast Notifications */ " +
@@ -146,7 +135,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             "    /* Personal Rating/Review Notifications */ " +
             "    (n.type = com.codingproject.digitalbase.enums.NotificationType.RATING AND n.user.id = :userId) " +
             "    OR " +
-            "    /* Personal Booking Updates ONLY for this Staff (Confirmed & Cancelled Only) */ " +
+            "    /* Personal Booking Updates ONLY for this Staff */ " +
             "    (n.bookingStatus IN (" +
             "        com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED, " +
             "        com.codingproject.digitalbase.enums.BookingStatus.CANCELLED" +
