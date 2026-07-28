@@ -128,7 +128,6 @@ public class DashboardServiceImpl implements DashboardService {
         List<StaffPerformance> basicMetrics = this.analyticsRepository.getStaffPerformanceMetrics();
         List<com.codingproject.digitalbase.model.StaffProfile> staffProfiles = this.staffProfileRepository.findAll();
 
-        // 🌟 [ADDED] ယနေ့ ခွင့် (Leave) / Day Off ယူထားသော Staff များကို DB ထဲမှ Fetch ပြုလုပ်ခြင်း
         Instant today = Instant.now();
         List<StaffLeave> activeLeavesToday = this.staffLeaveRepository.findActiveLeavesAt(today);
 
@@ -141,11 +140,15 @@ public class DashboardServiceImpl implements DashboardService {
                                 // Staff Code & Role
                                 String staffCode = (profile.getUser() != null && profile.getUser().getCode() != null)
                                         ? profile.getUser().getCode()
-                                        : "St-00" + profile.getId();
+                                        : "ST-00" + profile.getId();
                                 metric.setStaffCode(staffCode);
                                 metric.setStaffRole("Nail Artist");
 
-                                // 🌟 User Entity ထဲမှ Profile Picture နှင့် အချက်အလက်များ Mapping ပြုလုပ်ခြင်း
+                                // 🌟 [ADDED FIX] Rating Average Mapping ပြုလုပ်ခြင်း (Null ဖြစ်ပါက 0.0 သတ်မှတ်မည်)
+                                double ratingAvg = (profile.getRating() != null) ? profile.getRating() : 0.0;
+                                metric.setRatingAverage(ratingAvg);
+
+                                // User Entity ထဲမှ Profile Picture နှင့် အချက်အလက်များ Mapping ပြုလုပ်ခြင်း
                                 if (profile.getUser() != null) {
                                     User user = profile.getUser();
 
@@ -154,7 +157,7 @@ public class DashboardServiceImpl implements DashboardService {
                                     metric.setPhoneNumber(user.getPhone());
                                     metric.setEmail(user.getEmail());
 
-                                    // 🎯 Profile Picture
+                                    // Profile Picture
                                     String rawPhoto = user.getProfilePicture();
                                     String photoFileName = (rawPhoto != null && !rawPhoto.isBlank())
                                             ? rawPhoto
@@ -166,7 +169,7 @@ public class DashboardServiceImpl implements DashboardService {
 
                                     metric.setProfileImage(relativePath);
 
-                                    // 🎯 Date of Birth Mapping
+                                    // Date of Birth Mapping
                                     if (user.getDateOfBirth() != null) {
                                         LocalDate dob = user.getDateOfBirth().atZone(yangonZone).toLocalDate();
                                         metric.setDateOfBirth(dob);
@@ -174,31 +177,29 @@ public class DashboardServiceImpl implements DashboardService {
                                         metric.setDateOfBirth(null);
                                     }
 
-                                    // 🎯 Joined Date Mapping
+                                    // 🌟 [FIXED TYPO] Joined Date Mapping (ယခင်က setDateOfBirth(null) ဖြစ်နေသည်ကို setJoinedDate သို့ ပြင်ဆင်ထားပါသည်)
                                     if (user.getCreatedAt() != null) {
                                         LocalDate joinedDate = user.getCreatedAt().atZone(yangonZone).toLocalDate();
                                         metric.setJoinedDate(joinedDate);
                                     } else {
-                                        metric.setDateOfBirth(null);
+                                        metric.setJoinedDate(null);
                                     }
                                 } else {
                                     metric.setProfileImage("/uploads/profile-pictures/default-profile.png");
                                 }
 
-                                // 🌟 [FIXED] Status Mapping Logic (Day Off / Leave စစ်ဆေးချက် ထည့်သွင်းထားသည်)
+                                // Status Mapping Logic
                                 boolean isAccountActive = profile.getUser() != null && profile.getUser().isEnabled();
                                 boolean isStaffAvailable = profile.isAvailable();
                                 boolean hasActiveJob = profile.getAssignedBookings() != null && profile.getAssignedBookings().stream()
                                         .anyMatch(b -> b.getStatus() == BookingStatus.IN_PROGRESS);
 
-                                // ယနေ့ ခွင့် / Day Off ယူထားခြင်း ရှိမရှိ စစ်ဆေးခြင်း
                                 boolean isOnLeaveToday = activeLeavesToday != null && activeLeavesToday.stream()
                                         .anyMatch(l -> l.getStaffProfile() != null && l.getStaffProfile().getId().equals(profile.getId()));
 
                                 if (!isAccountActive) {
                                     metric.setStatus("Inactive");
                                 } else if (isOnLeaveToday) {
-                                    // 🎯 Day Off သို့မဟုတ် Leave ယူထားပါက In Progress ထဲ မပါစေဘဲ Unavailable အဖြစ် သတ်မှတ်မည်
                                     metric.setStatus("Unavailable");
                                 } else if (hasActiveJob) {
                                     metric.setStatus("In Progress");

@@ -69,8 +69,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT b FROM Booking b WHERE b.customer.id = :customerId ORDER BY b.createdAt DESC")
     List<Booking> findTopRecentBookings(@Param("customerId") Long customerId, Pageable pageable);
 
-    @Query("SELECT b FROM Booking b WHERE b.customer.code = 'CU-WALKIN' ORDER BY b.bookingDate DESC")
-    Page<Booking> findWalkInBookings(Pageable pageable);
+    @Query("SELECT b FROM Booking b " +
+            "LEFT JOIN b.customer c " +
+            "LEFT JOIN b.assignedStaff s " +
+            "LEFT JOIN s.user u " +
+            "LEFT JOIN b.businessService bs " +
+            "WHERE c.code = 'CU-WALKIN' " +
+            "AND (:search IS NULL OR :search = '' OR " +
+            "LOWER(c.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "LOWER(bs.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+            "ORDER BY b.bookingDate DESC")
+    Page<Booking> findWalkInBookings(@Param("search") String search, Pageable pageable);
 
     @Query("SELECT b FROM Booking b WHERE FUNCTION('MONTH', b.bookingDate) = :month AND FUNCTION('YEAR', b.bookingDate) = :year")
     List<Booking> findAllByMonthAndYear(@Param("month") int month, @Param("year") int year);
@@ -79,4 +89,5 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.assignedStaff.id = :staffProfileId AND b.status = com.codingproject.digitalbase.enums.BookingStatus.COMPLETED")
     long countCompletedBookingsByStaffId(@Param("staffProfileId") Long staffProfileId);
+
 }

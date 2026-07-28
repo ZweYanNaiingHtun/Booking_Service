@@ -71,7 +71,7 @@ public class SecurityConfig {
                         .requestMatchers(new String[]{"/login/oauth2/**", "/oauth2/**"})).permitAll().requestMatchers(new String[]{"/error"})).permitAll()
                         .anyRequest()).authenticated()).sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authenticationProvider(this.authenticationProvider())
                 .addFilterBefore(this.jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-        return (SecurityFilterChain)http.build();
+        return http.build();
     }
 
     @Bean

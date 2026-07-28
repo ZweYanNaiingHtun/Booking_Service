@@ -58,8 +58,9 @@ public class CustomerManagementController {
 
     @GetMapping("/walkin")
     public ResponseEntity<Page<WalkInSummaryResponse>> getWalkInCustomers(
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(this.customerService.getWalkInList(page, size));
+        return ResponseEntity.ok(this.customerService.getWalkInList(search, page, size));
     }
 }

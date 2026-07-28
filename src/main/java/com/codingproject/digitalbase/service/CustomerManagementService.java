@@ -13,7 +13,7 @@ public interface CustomerManagementService {
 
     WalkInDetailResponse getWalkInDetail(Long bookingId);
 
-    Page<WalkInSummaryResponse> getWalkInList(int page, int size);
+    Page<WalkInSummaryResponse> getWalkInList(String search , int page, int size);
 
     // 🌟 [ADDED] Blocked Customer List ရယူရန်
     Page<CustomerSummaryResponse> getBlockedCustomerList(String search, int page, int size);

@@ -8,7 +8,6 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BookingTrendDTO {
-
     private LocalDate bookingDate;
     private long bookingCount;
 }

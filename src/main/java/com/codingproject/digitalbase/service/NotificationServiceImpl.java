@@ -79,6 +79,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .imageUrl(relativeImagePath)
                 .metadata(metadataMap)
                 .createdAt(Instant.now())
+                .isBroadcast(true)
                 .build();
 
         Notification saved = notificationRepository.save(notification);
@@ -112,16 +113,15 @@ public class NotificationServiceImpl implements NotificationService {
     public Page<NotificationDTO> getAllNotificationsByAudience(TargetAudience audience, Pageable pageable) {
         log.info("Admin UI: Fetching paged global notification history for audience: {}", audience);
 
-        // 🌟 1. TargetAudience အလိုက် BOTH အား အလိုအလျောက် ပူးတွဲ ပါဝင်စေခြင်း
         List<TargetAudience> targetAudiences = switch (audience) {
             case STAFF -> List.of(TargetAudience.STAFF, TargetAudience.BOTH);
             case CUSTOMER -> List.of(TargetAudience.CUSTOMER, TargetAudience.BOTH);
             default -> List.of(audience);
         };
 
-        // 🌟 2. TargetAudienceIn သို့ List အား ပို့ပေးခြင်း
+        // 🌟 isBroadcast = true ဖြစ်သော Admin Sent Notification များကိုသာ Fetch ပြုလုပ်မည်
         Page<Notification> notificationPage = notificationRepository
-                .findByTypeIsNotNullAndTargetAudienceInAndUserIsNull(targetAudiences, pageable);
+                .findByIsBroadcastTrueAndTargetAudienceInAndUserIsNull(targetAudiences, pageable);
 
         return notificationPage.map(this::mapToDTO);
     }

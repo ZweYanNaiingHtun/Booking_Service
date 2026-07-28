@@ -71,21 +71,57 @@ public class BusinessServiceServiceImpl implements BusinessServiceService {
         }
     }
 
+    @Override
     @Transactional
     public void deleteService(Long id) {
-        BusinessService service = this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found"));
+        // ၁။ DB ထဲတွင် ရှိမရှိ စစ်ဆေးခြင်း
+        BusinessService service = this.serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
+
+        // 🌟 Constraint Check: ဤ Service သည် Package တစ်ခုခု၏ bundledServices ထဲတွင် ပါဝင်နေပါက Soft Delete ခွင့်မပြုပါ
+        boolean isBundled = this.serviceRepository.isServiceBundledInAnyPackage(id);
+        if (isBundled) {
+            throw new BadRequestException("Cannot delete service '" + service.getName() + "' because it is currently included in one or more packages.");
+        }
+
+        // ၂။ Service အား Soft Delete ပြုလုပ်ခြင်း
         service.setEnabled(false);
         this.serviceRepository.save(service);
+
+        // 🌟 ၃။ [AUTO-DISABLE CATEGORY] Category အောက်တွင် Active ဖြစ်သော Service ကျန်သေးလား စစ်ဆေးခြင်း
+        Category category = service.getCategory();
+        if (category != null) {
+            boolean hasActiveServicesLeft = this.serviceRepository.existsByCategoryIdAndIsEnabledTrue(category.getId());
+
+            // အကယ်၍ Active Service တစ်ခုမျှ မကျန်တော့ပါက Parent Category ကိုပါ enabled = false ပြောင်းပါမည်
+            if (!hasActiveServicesLeft) {
+                category.setEnabled(false);
+                this.categoryRepository.save(category);
+            }
+        }
     }
 
+    @Override
     @Transactional
     public void restoreService(Long id) {
-        BusinessService service = this.serviceRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
+        // ၁။ DB ထဲတွင် ရှိမရှိ စစ်ဆေးခြင်း
+        BusinessService service = this.serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
+
+        // ၂။ Active ဖြစ်ပြီးသား လား စစ်ဆေးခြင်း
         if (service.isEnabled()) {
             throw new BadRequestException("Service is already active and does not need to be restored.");
-        } else {
-            service.setEnabled(true);
-            this.serviceRepository.save(service);
+        }
+
+        // ၃။ Service အား ပြန်လည် Active (enabled = true) ပြုလုပ်ခြင်း
+        service.setEnabled(true);
+        this.serviceRepository.save(service);
+
+        // 🌟 ၄။ [AUTO-ENABLE CATEGORY] Parent Category သည် disabled ဖြစ်နေပါက enabled = true သို့ အလိုအလျောက် ပြန်ဖွင့်ပေးခြင်း
+        Category category = service.getCategory();
+        if (category != null && !category.isEnabled()) {
+            category.setEnabled(true);
+            this.categoryRepository.save(category);
         }
     }
 

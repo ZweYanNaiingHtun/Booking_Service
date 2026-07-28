@@ -20,6 +20,7 @@ public class StaffResponse {
     private boolean enabled;
     private boolean isAvailable;
     private String createdAt;
+    private Double rating;
     private String dateOfBirth;
     private List<Long> specializedServiceIds;
 }

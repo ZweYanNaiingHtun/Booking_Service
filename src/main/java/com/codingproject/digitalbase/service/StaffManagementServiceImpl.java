@@ -9,14 +9,9 @@ import com.codingproject.digitalbase.model.*;
 import com.codingproject.digitalbase.repository.*;
 
 import java.security.SecureRandom;
-import java.time.Instant;
-import java.time.ZoneId;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
@@ -261,55 +256,76 @@ public class StaffManagementServiceImpl implements StaffManagementService {
     }
 
     @Override
-    public DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate) {
-        // 🌟 ၁။ Terminated / Inactive မဟုတ်သော Active ဝန်ထမ်းများကိုသာ Fetch လုပ်ခြင်း
-        // (IsAvailable = true နှင့် User Enabled = true ဖြစ်သူများကိုသာ ယူမည်)
+    @Transactional(readOnly = true)
+    public MonthlyStaffStatusResponse getMonthlyStaffStatus(int year, int month) {
+        ZoneId zoneId = ZoneId.systemDefault(); // သို့မဟုတ် ZoneId.of("Asia/Yangon")
+        YearMonth yearMonth = YearMonth.of(year, month);
+
+        // 1. တစ်လ၏ စတင်ချိန် နှင့် ပြီးဆုံးချိန် Instant သို့ ပြောင်းလဲခြင်း
+        Instant startOfMonth = yearMonth.atDay(1).atStartOfDay(zoneId).toInstant();
+        Instant endOfMonth = yearMonth.atEndOfMonth().atTime(LocalTime.MAX).atZone(zoneId).toInstant();
+
+        // 🌟 2. Active ဝန်ထမ်းများအားလုံးကို Fetch လုပ်ခြင်း (DB Query 1)
         List<StaffProfile> allActiveStaff = staffProfileRepository.findByIsAvailableTrue().stream()
                 .filter(staff -> staff.getUser() != null && staff.getUser().isEnabled())
                 .toList();
 
-        // 🎯 Target နေ့နှင့် ငြိနေသော ခွင့်များကိုသာ DB ထဲမှ တိုက်ရိုက်ဆွဲထုတ်ခြင်း
-        List<StaffLeave> activeLeaves = staffLeaveRepository.findActiveLeavesAt(targetDate);
+        // 🌟 3. ထိုလအတွင်း ရှိသမျှ Leave အားလုံးကို ဆွဲထုတ်ခြင်း (DB Query 2)
+        List<StaffLeave> monthlyLeaves = staffLeaveRepository.findActiveLeavesInMonth(startOfMonth, endOfMonth);
 
-        List<DailyStaffStatusResponse.StaffStatusDTO> activeStaff = new ArrayList<>();
-        List<DailyStaffStatusResponse.StaffStatusDTO> dayOffStaff = new ArrayList<>();
-        List<DailyStaffStatusResponse.StaffStatusDTO> leaveStaff = new ArrayList<>();
+        Map<LocalDate, DailyStaffStatusResponse> dailyStatuses = new LinkedHashMap<>();
 
-        for (StaffProfile staff : allActiveStaff) {
-            // အဆိုပါ ဝန်ထမ်းသည် ယနေ့ ခွင့်ယူထားခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
-            StaffLeave staffLeave = activeLeaves.stream()
-                    .filter(l -> l.getStaffProfile().getId().equals(staff.getId()))
-                    .findFirst()
-                    .orElse(null);
+        // 4. လ၏ ရက်အလိုက် (၁ ရက်နေ့မှ ၃၀/၃၁ ရက်နေ့အထိ) Loop ပတ်၍ Status ခွဲခြားခြင်း
+        for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
+            LocalDate currentDate = yearMonth.atDay(day);
+            Instant dayStart = currentDate.atStartOfDay(zoneId).toInstant();
+            Instant dayEnd = currentDate.atTime(LocalTime.MAX).atZone(zoneId).toInstant();
 
-            User user = staff.getUser();
+            // ယနေ့ ရက်စွဲနှင့် ငြိနေသော Leave များကို Memory ထဲတွင် Filter စစ်ခြင်း
+            List<StaffLeave> dayLeaves = monthlyLeaves.stream()
+                    .filter(l -> !l.getStartDate().isAfter(dayEnd) && !l.getEndDate().isBefore(dayStart))
+                    .toList();
 
-            // User Object ထဲမှ Role Name ကို စာသားအဖြစ် ပြောင်းလဲခြင်း
-            String roleName = user.getRoles().stream()
-                    .map(role -> role.getRole().name())
-                    .collect(Collectors.joining(", "));
+            List<DailyStaffStatusResponse.StaffStatusDTO> activeStaff = new ArrayList<>();
+            List<DailyStaffStatusResponse.StaffStatusDTO> dayOffStaff = new ArrayList<>();
+            List<DailyStaffStatusResponse.StaffStatusDTO> leaveStaff = new ArrayList<>();
 
-            DailyStaffStatusResponse.StaffStatusDTO dto = DailyStaffStatusResponse.StaffStatusDTO.builder()
-                    .id(staff.getId())
-                    .name(user.getFullName())
-                    .role(roleName)
-                    .profileImage(user.getProfilePicture())
-                    .build();
+            for (StaffProfile staff : allActiveStaff) {
+                StaffLeave staffLeave = dayLeaves.stream()
+                        .filter(l -> l.getStaffProfile().getId().equals(staff.getId()))
+                        .findFirst()
+                        .orElse(null);
 
-            // အုပ်စု ၃ စု ခွဲခြားထည့်သွင်းခြင်း
-            if (staffLeave == null) {
-                activeStaff.add(dto);
-            } else if (LeaveType.DAY_OFF == staffLeave.getLeaveType()) {
-                dayOffStaff.add(dto);
-            } else {
-                leaveStaff.add(dto);
+                User user = staff.getUser();
+                String roleName = user.getRoles().stream()
+                        .map(role -> role.getRole().name())
+                        .collect(Collectors.joining(", "));
+
+                DailyStaffStatusResponse.StaffStatusDTO dto = DailyStaffStatusResponse.StaffStatusDTO.builder()
+                        .id(staff.getId())
+                        .name(user.getFullName())
+                        .role(roleName)
+                        .profileImage(user.getProfilePicture())
+                        .build();
+
+                if (staffLeave == null) {
+                    activeStaff.add(dto);
+                } else if (LeaveType.DAY_OFF == staffLeave.getLeaveType()) {
+                    dayOffStaff.add(dto);
+                } else {
+                    leaveStaff.add(dto);
+                }
             }
+
+            dailyStatuses.put(currentDate, DailyStaffStatusResponse.builder()
+                    .activeStaff(activeStaff)
+                    .dayOffStaff(dayOffStaff)
+                    .leaveStaff(leaveStaff)
+                    .build());
         }
 
-        return DailyStaffStatusResponse.builder()
-                .activeStaff(activeStaff)
-                .dayOffStaff(dayOffStaff)
-                .leaveStaff(leaveStaff)
+        return MonthlyStaffStatusResponse.builder()
+                .dailyStatuses(dailyStatuses)
                 .build();
     }
 
@@ -419,6 +435,10 @@ public class StaffManagementServiceImpl implements StaffManagementService {
         // 🌟 User Entity ထဲမှ Instant dateOfBirth ကို String ပြောင်းလဲခြင်း
         String formattedDob = user.getDateOfBirth() != null ? dobFormatter.format(user.getDateOfBirth()) : null;
 
+        Double staffRating = (user.getStaffProfile() != null && user.getStaffProfile().getRating() != null)
+                ? user.getStaffProfile().getRating()
+                : 0.0;
+
         boolean availableStatus = user.getStaffProfile() != null && user.getStaffProfile().isAvailable();
 
         List<Long> serviceIds = new java.util.ArrayList<>();
@@ -439,6 +459,7 @@ public class StaffManagementServiceImpl implements StaffManagementService {
                 .enabled(user.isEnabled())
                 .isAvailable(availableStatus)
                 .createdAt(formattedDate)
+                .rating(staffRating)
                 .dateOfBirth(formattedDob) // 🌟 ဤနေရာတွင် မွေးနေ့ကို Response ထဲ ကွက်တိ ထည့်ပေးလိုက်ပါပြီဗျာ
                 .specializedServiceIds(serviceIds)
                 .build();

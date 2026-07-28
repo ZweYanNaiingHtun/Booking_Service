@@ -46,6 +46,9 @@ public class Category {
     @Column(name = "enabled", nullable = false)
     private boolean enabled = true;
 
+    @Column(name = "in_package" , nullable = false)
+    private boolean inPackage;
+
     @OneToMany(mappedBy = "category")
 
     private Set<BusinessService> services = new HashSet<>();

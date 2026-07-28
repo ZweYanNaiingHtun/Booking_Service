@@ -165,24 +165,22 @@ public class CustomerManagementServiceImpl implements CustomerManagementService 
     }
     @Override
     @Transactional(readOnly = true)
-    public Page<WalkInSummaryResponse> getWalkInList(int page, int size) {
+    public Page<WalkInSummaryResponse> getWalkInList(String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Booking> walkInBookings = bookingRepository.findWalkInBookings(pageable);
 
-        // အချိန်နှင့် ရက်စွဲ Format သတ်မှတ်ခြင်း
+        // 🌟 Repository သို့ search parameter ထည့်သွင်းပေးလိုက်ပါသည်
+        Page<Booking> walkInBookings = bookingRepository.findWalkInBookings(search, pageable);
+
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("d/M/yyyy").withZone(ZoneId.of("Asia/Yangon"));
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a").withZone(ZoneId.of("Asia/Yangon"));
 
         return walkInBookings.map(b -> {
-            // 🌟 ၁။ UI ထဲကလို "CUS-001" ပုံစံထွက်အောင် Booking ID ကို သုံး၍ Format ပြောင်းခြင်း
             String formattedWalkInId = String.format("CUS - %03d", b.getId());
 
-            // ၂။ Service Duration အား Hours ဖြင့် ပြောင်းလဲတွက်ချက်ခြင်း
             Integer minutes = (b.getBusinessService() != null) ? b.getBusinessService().getDurationInMinutes() : 60;
             double hours = minutes / 60.0;
             String totalTimeStr = (hours % 1 == 0) ? (int)hours + " hours" : hours + " hours";
 
-            // ၃။ Payment အချက်အလက်များအား UI Tag ပုံစံအတိုင်း စာသားစုစည်းခြင်း
             String amountDisplay = "0 MMK";
             BigDecimal totalAmt = BigDecimal.ZERO;
             BigDecimal extra = BigDecimal.ZERO;

@@ -59,6 +59,10 @@ public class Notification {
     @Column(nullable = false, name = "created_at")
     private Instant createdAt;
 
+    @Builder.Default
+    @Column(name = "is_broadcast", nullable = false)
+    private Boolean isBroadcast = false;
+
     @Lob
     @JdbcTypeCode(Types.LONGVARCHAR)
     @Convert(converter = JsonToMapConverter.class)

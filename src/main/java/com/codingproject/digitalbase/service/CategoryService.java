@@ -6,6 +6,7 @@
 package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.CategoryRequest;
+import com.codingproject.digitalbase.dtos.CategoryResponse;
 import com.codingproject.digitalbase.dtos.CategoryWithServicesResponse;
 import com.codingproject.digitalbase.model.Category;
 import java.util.List;
@@ -17,7 +18,7 @@ public interface CategoryService {
     )
     CategoryWithServicesResponse getCategoryById(Long id);
 
-    List<Category> getAllCategories();
+    List<CategoryResponse> getAllCategories();
 
     Category createCategory(CategoryRequest request);
 

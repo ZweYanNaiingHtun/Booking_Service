@@ -18,15 +18,16 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    // ==========================================
-    // 🖥️ UI အပိုင်း (၁) - SENT NOTIFICATIONS PAGE (Admin Direct Send သက်သက်ပြရန်)
-    // ==========================================
 
-    // 🎯 Admin ကိုယ်တိုင် Type သတ်မှတ်ပြီး ပို့ထားသော Global Broadcasts (user IS NULL) ပြရန်
-    Page<Notification> findByTypeIsNotNullAndTargetAudienceAndUserIsNull(TargetAudience targetAudience, Pageable pageable);
+    // 🎯 Admin ကိုယ်တိုက် ပို့ထားသော Global Broadcast Notification များကိုသာ ဆွဲထုတ်ရန်
+    Page<Notification> findByIsBroadcastTrueAndTargetAudienceInAndUserIsNull(
+            List<TargetAudience> targetAudiences,
+            Pageable pageable
+    );
+
 
     // ==========================================
-    // 📥 UI အပိုင်း (၂) - ADMIN INBOX DRAWER (System Actions & Events Filter များ)
+    // 📥 UI - ADMIN INBOX DRAWER (System Actions & Events Filter များ)
     // ==========================================
 
     // 🎯 Incoming Customer Tab Filter (Only ALLOWS: Ordered, Cancel, Review)
@@ -168,13 +169,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("audiences") List<TargetAudience> audiences,
             Pageable pageable);
 
-    Page<Notification> findByTargetAudienceAndBookingStatusAndUserId(
-            TargetAudience targetAudience,
-            BookingStatus bookingStatus,
-            Long userId,
-            Pageable pageable
-    );
-
     @Query("SELECT n FROM Notification n WHERE (n.targetAudience = :audience OR n.targetAudience = com.codingproject.digitalbase.enums.TargetAudience.BOTH) AND (n.user.id = :userId OR n.user IS NULL) ORDER BY n.createdAt DESC")
     Page<Notification> findNotificationsForUser(@Param("userId") Long userId, @Param("audience") TargetAudience audience, Pageable pageable);
 
@@ -182,4 +176,5 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             List<TargetAudience> targetAudiences,
             Pageable pageable
     );
+
 }

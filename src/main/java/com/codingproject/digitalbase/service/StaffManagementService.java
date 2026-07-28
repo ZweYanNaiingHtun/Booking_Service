@@ -6,6 +6,7 @@
 package com.codingproject.digitalbase.service;
 
 import com.codingproject.digitalbase.dtos.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -25,7 +26,7 @@ public interface StaffManagementService {
 
     StaffResponse toggleStaffStatus(Long staffId, boolean enable);
 
-    DailyStaffStatusResponse getDailyStaffStatus(Instant targetDate);
+    MonthlyStaffStatusResponse getMonthlyStaffStatus(int year, int month);
 
     // 🎯 ပြက္ခဒိန်အတွက် Range အလိုက် Loop ပတ်ပြီး Data ထုတ်ပေးခြင်း
     List<CalendarMonthResponse> getCalendarMonthOverview(Integer year, Integer month, Long staffId);
