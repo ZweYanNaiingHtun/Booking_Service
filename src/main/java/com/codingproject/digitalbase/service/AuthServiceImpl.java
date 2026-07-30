@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.Generated;
 import lombok.RequiredArgsConstructor;
@@ -74,15 +75,45 @@ public class AuthServiceImpl implements AuthService {
 
     @Transactional
     public void signupInit(SignupInitRequest request) {
-        if (this.userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email is already registered");
-        } else {
-            String otp = getOtp();
-            Role userRole = this.roleRepository.findByRole(RoleName.CUSTOMER).orElseThrow(() -> new ResourceNotFoundException("Default role not found!"));
-            User user = User.builder().email(request.getEmail()).password(this.passwordEncoder.encode(request.getPassword())).roles(new HashSet(Collections.singleton(userRole))).enabled(false).otp(otp).otpGeneratedTime(Instant.now()).createdAt(Instant.now()).profilePicture("default-profile.png").build();
-            this.userRepository.save(user);
-            this.emailService.sendVerificationEmail(user.getEmail(), otp);
+        Optional<User> existingUserOpt = this.userRepository.findByEmail(request.getEmail());
+
+        if (existingUserOpt.isPresent()) {
+            User existingUser = existingUserOpt.get();
+
+            // 🌟 ၁။ အကောင့်က Verify ဖြစ်ပြီးသား (enabled == true) ဖြစ်ပါက Error ပြမည်
+            if (Boolean.TRUE.equals(existingUser.isEnabled())) {
+                throw new BadRequestException("Email is already registered");
+            }
+
+            // 🌟 ၂။ အကောင့်ရှိသော်လည်း Verify မဖြစ်သေးပါက (enabled == false) OTP အသစ်ပြန်ပို့ပေးမည်
+            String newOtp = getOtp();
+            existingUser.setPassword(this.passwordEncoder.encode(request.getPassword())); // စကားဝှက် ပြောင်းလဲရိုက်ထည့်ခဲ့ပါက မွမ်းမံပေးခြင်း
+            existingUser.setOtp(newOtp);
+            existingUser.setOtpGeneratedTime(Instant.now());
+
+            this.userRepository.save(existingUser);
+            this.emailService.sendVerificationEmail(existingUser.getEmail(), newOtp);
+            return;
         }
+
+        // 🌟 ၃။ Email အသစ်ဖြစ်ပါက အကောင့်အသစ် စတင်ဖန်တီးမည်
+        String otp = getOtp();
+        Role userRole = this.roleRepository.findByRole(RoleName.CUSTOMER)
+                .orElseThrow(() -> new ResourceNotFoundException("Default role not found!"));
+
+        User user = User.builder()
+                .email(request.getEmail())
+                .password(this.passwordEncoder.encode(request.getPassword()))
+                .roles(new HashSet<>(Collections.singleton(userRole)))
+                .enabled(false)
+                .otp(otp)
+                .otpGeneratedTime(Instant.now())
+                .createdAt(Instant.now())
+                .profilePicture("default-profile.png")
+                .build();
+
+        this.userRepository.save(user);
+        this.emailService.sendVerificationEmail(user.getEmail(), otp);
     }
 
     @Transactional

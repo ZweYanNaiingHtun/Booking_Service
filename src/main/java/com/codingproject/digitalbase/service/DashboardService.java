@@ -8,7 +8,7 @@ public interface DashboardService {
 
     List<TopServiceResponse> getTopServicesTrending(Integer month, Integer year);
 
-    StaffOverviewWrapper getStaffPerformanceRanking(Integer month, Integer year);
+    StaffOverviewWrapper getStaffPerformanceRanking(String search, Integer month, Integer year);
 
     ReportSummaryResponse getReportChartData(Integer year, Integer month, String period);
 

@@ -99,11 +99,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             "        com.codingproject.digitalbase.enums.NotificationType.ALERT" +
             "    ) AND (n.user.id = :userId OR n.user IS NULL)) " +
             "    OR " +
-            "    /* Personal Booking Updates ONLY for this Customer */ " +
+            "    /* Personal Booking Updates ONLY for this Customer (CANCELLED အပါအဝင်) */ " +
             "    (n.bookingStatus IN (" +
             "        com.codingproject.digitalbase.enums.BookingStatus.CONFIRMED, " +
             "        com.codingproject.digitalbase.enums.BookingStatus.IN_PROGRESS, " +
-            "        com.codingproject.digitalbase.enums.BookingStatus.COMPLETED" +
+            "        com.codingproject.digitalbase.enums.BookingStatus.COMPLETED, " +
+            "        com.codingproject.digitalbase.enums.BookingStatus.CANCELLED" + // 🌟 ဒီနေရာတွင် CANCELLED ကို ထည့်သွင်းထားပါသည်
             "    ) AND n.user.id = :userId) " +
             ") " +
             "AND (" +

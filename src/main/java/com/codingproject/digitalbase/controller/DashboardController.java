@@ -65,9 +65,10 @@ public class DashboardController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @GetMapping("/staff-performance")
     public ResponseEntity<StaffOverviewWrapper> getStaffPerformance(
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) Integer year) {
-        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking(month, year));
+        return ResponseEntity.ok(this.dashboardService.getStaffPerformanceRanking(search, month, year));
     }
 
     @PreAuthorize("hasRole('SUPER_ADMIN')")
